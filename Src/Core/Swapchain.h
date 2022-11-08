@@ -76,12 +76,12 @@ namespace EngineCore {
 		std::vector<VkImage> depthImages;
 		std::vector<VkDeviceMemory> depthImageMemorys;
 		std::vector<VkImageView> depthImageViews;
-		std::vector<VkImage> swapChainImages;
-		std::vector<VkImageView> swapChainImageViews;
-
 		std::vector<VkImage> multisampleImages;
 		std::vector<VkDeviceMemory> multisampleImageMemorys;
 		std::vector<VkImageView> multisampleImageViews;
+
+		std::vector<VkImage> swapChainImages;
+		std::vector<VkImageView> swapChainImageViews;
 
 		EngineDevice& device;
 		VkExtent2D windowExtent;
