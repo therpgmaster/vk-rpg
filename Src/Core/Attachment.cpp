@@ -60,5 +60,24 @@ namespace EngineCore
 	}
 
 
+	Framebuffer::Framebuffer(EngineDevice& device, std::vector<VkImageView> imageViews,
+							VkRenderPass renderPass, VkExtent2D extent, uint32_t numCopies)
+	{
+		framebuffers.resize(numCopies);
+		for (size_t i = 0; i < numCopies; i++)
+		{
+			VkFramebufferCreateInfo framebufferInfo = {};
+			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			framebufferInfo.renderPass = renderPass;
+			framebufferInfo.attachmentCount = static_cast<uint32_t>(imageViews.size());
+			framebufferInfo.pAttachments = imageViews.data();
+			framebufferInfo.width = extent.width;
+			framebufferInfo.height = extent.height;
+			framebufferInfo.layers = 1;
+			if (vkCreateFramebuffer(device.device(), &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS)
+			{ throw std::runtime_error("failed to create framebuffer"); }
+		}
+	}
+
 }
 

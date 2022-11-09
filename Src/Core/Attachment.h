@@ -40,4 +40,15 @@ namespace EngineCore
 
 	};
 
+	// abstraction for a framebuffer, or a series of them (multi-buffering/swapchain use)
+	class Framebuffer 
+	{
+	public: 
+		Framebuffer(class EngineDevice& device, std::vector<VkImageView> imageViews, 
+					VkRenderPass renderPass, VkExtent2D extent, uint32_t numCopies = 1);
+		VkFramebuffer get(uint32_t i = 0) { return framebuffers[i]; }
+	private:
+		std::vector<VkFramebuffer> framebuffers;
+	};
+
 }  // namespace
