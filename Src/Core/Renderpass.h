@@ -9,7 +9,6 @@ namespace EngineCore
 	{ 
 		VkAttachmentDescription d{};
 		uint32_t i;
-		// syntactic sugar
 		enum class Type { color, resolve, depthStencil } t;
 		RpAttachment(VkAttachmentDescription description, uint32_t index, Type type);
 	};
@@ -25,13 +24,17 @@ namespace EngineCore
 		void add(const RpAttachment& a);
 	};
 
+
 	class Renderpass 
 	{
 	public:
 		Renderpass(class EngineDevice& device, RpAttachmentsInfo a);
 
+		void begin(VkCommandBuffer commandBuffer, uint32_t currentFrame);
+
 	private:
 		VkRenderPass renderpass;
+		Framebuffer framebuffer; // contains the rendertargets (attachments)
 
 	};
 

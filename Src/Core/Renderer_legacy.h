@@ -22,7 +22,7 @@ namespace EngineCore
 		EngineRenderer& operator=(const EngineRenderer&) = delete;
 
 		
-		VkRenderPass getSwapchainRenderPass() const; // used in pipeline creation
+		VkRenderPass getSwapchainRenderPass() const;
 		bool getIsFrameInProgress() const { return isFrameStarted; }
 		VkCommandBuffer getCurrentCommandBuffer() const 
 		{ 
@@ -40,7 +40,7 @@ namespace EngineCore
 		VkCommandBuffer beginFrame();
 		// submit command buffer to finalize the frame
 		void endFrame();
-		void beginSwapchainRenderPass(VkCommandBuffer commandBuffer);/* MOVED TO RENDERPASS CLASS */
+		void beginSwapchainRenderPass(VkCommandBuffer commandBuffer);
 		void endSwapchainRenderPass(VkCommandBuffer commandBuffer);
 
 	private:

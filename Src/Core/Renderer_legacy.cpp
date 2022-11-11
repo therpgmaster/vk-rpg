@@ -113,7 +113,6 @@ namespace EngineCore
 
 	void EngineRenderer::beginSwapchainRenderPass(VkCommandBuffer commandBuffer) 
 	{
-		/* MOVED TO RENDERPASS CLASS */
 		assert(isFrameStarted && "beginSwapchainRenderPass failed, no frame in progress");
 		assert(commandBuffer == getCurrentCommandBuffer() && "cannot begin renderpass on commandbuffer from other frame");
 

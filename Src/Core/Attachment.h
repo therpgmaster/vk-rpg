@@ -8,7 +8,7 @@
 
 namespace EngineCore
 {
-	// properties that specify a certain type of attachment
+	// properties used to create an attachment's resources
 	struct AttachmentInfo 
 	{
 		size_t imageCount;
@@ -19,36 +19,40 @@ namespace EngineCore
 		VkSampleCountFlagBits samples;
 	};
 
-
+	// handles the image resources for a framebuffer attachment, may be used in multiple framebuffers
 	class Attachment
 	{
 	public:
-		Attachment(const AttachmentInfo& info_) : info{ info_ } {};
+		Attachment(const AttachmentInfo& info_, class EngineDevice& device);
 
 		// returns a structure for renderpass creation, must be populated further before use
 		VkAttachmentDescription getDescription() const;
 
-		// initializes an attachment's images and memory (this could possibly be moved to the constructor)
-		void createResources(class EngineDevice& device);
+		VkImageView getImageView() const { return imageView; }
+		//VkImage getImage() const { return image; }
+		//VkImage getImageMemory() const { return imageMemory; }
 
 	private:
 		AttachmentInfo info;
 	
-		std::vector<VkImage> images;
-		std::vector<VkDeviceMemory> imageMemorys;
-		std::vector<VkImageView> imageViews;
-
+		VkImage image;
+		VkDeviceMemory imageMemory;
+		VkImageView imageView;
 	};
 
-	// abstraction for a framebuffer, or a series of them (multi-buffering/swapchain use)
+	// abstraction for a VkFramebuffer, bound to a specific renderpass at initialization time
 	class Framebuffer 
 	{
 	public: 
 		Framebuffer(class EngineDevice& device, std::vector<VkImageView> imageViews, 
 					VkRenderPass renderPass, VkExtent2D extent, uint32_t numCopies = 1);
-		VkFramebuffer get(uint32_t i = 0) { return framebuffers[i]; }
+
+		VkFramebuffer get() const { return framebuffer; }
+		const Attachment& getAttachment(uint32_t attIndex = 0) const { return attachments[attIndex]; }
 	private:
-		std::vector<VkFramebuffer> framebuffers;
+		VkFramebuffer framebuffer;
+		std::vector<Attachment> attachments;
+
 	};
 
 }  // namespace

@@ -26,6 +26,7 @@ namespace EngineCore
 		}
 	}
 
+
 	Renderpass::Renderpass(EngineDevice& device, RpAttachmentsInfo a)
 	{
 		const auto numColor = a.colorAttachments.size();
@@ -33,34 +34,42 @@ namespace EngineCore
 		assert(numResolve == 0 || numResolve == numColor && "resolve attachments color attachments counts mismatch");
 		assert(a.hasDepthStencil || numColor > 0 && "no color or depth-stencil attachments specified");
 
-		std::vector<VkAttachmentReference> colorRefs{};		colorRefs.reserve(numColor);
-		std::vector<VkAttachmentReference> resolveRefs{};	resolveRefs.reserve(numResolve);
-		VkAttachmentReference depthStencilRef{};
+		// descriptions for all the attachments
+		std::vector<VkAttachmentDescription> allAtt{};		allAtt.reserve(numColor + numResolve + a.hasDepthStencil);
 
 		// color attachment references
+		std::vector<VkAttachmentReference> colorRefs{};		colorRefs.reserve(numColor);
 		for (auto& x : a.colorAttachments) 
 		{
 			VkAttachmentReference ref{};
 			ref.layout = a.colorLayout;
-			ref.attachment = x.index;
+			ref.attachment = x.i;
 			colorRefs.push_back(ref);
+			allAtt.push_back(x.d);
 		}
 
 		// resolve attachment references
+		std::vector<VkAttachmentReference> resolveRefs{};	resolveRefs.reserve(numResolve);
 		for (auto& x : a.resolveAttachments)
 		{
 			VkAttachmentReference ref{};
 			ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			ref.attachment = x.index;
+			ref.attachment = x.i;
 			resolveRefs.push_back(ref);
+			allAtt.push_back(x.d);
 		}
 
-		// depth-stencil attachment references
-		VkAttachmentReference ref{};
-		ref.layout = a.depthStencilLayout;
-		ref.attachment = a.depthStencilAttachment.index;
-		depthStencilRef = ref;
-
+		// depth-stencil attachment reference
+		VkAttachmentReference depthStencilRef{};
+		if (a.hasDepthStencil) 
+		{
+			VkAttachmentReference ref{};
+			ref.layout = a.depthStencilLayout;
+			ref.attachment = a.depthStencilAttachment.i;
+			depthStencilRef = ref;
+			allAtt.push_back(a.depthStencilAttachment.d);
+		}
+		
 		// create subpass
 		VkSubpassDescription subpass = {};
 		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; // may need its own parameter in the future
@@ -70,7 +79,7 @@ namespace EngineCore
 		subpass.pResolveAttachments = (numResolve > 0) ? resolveRefs.data() : NULL;
 		subpass.pDepthStencilAttachment = (a.hasDepthStencil) ? &depthStencilRef : NULL;
 
-
+		// TODO
 		VkSubpassDependency dependency = {};
 		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 		dependency.srcAccessMask = 0;
@@ -82,8 +91,8 @@ namespace EngineCore
 
 		VkRenderPassCreateInfo renderPassInfo = {};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-		renderPassInfo.pAttachments = allAttachments.data();
+		renderPassInfo.attachmentCount = static_cast<uint32_t>(allAtt.size());
+		renderPassInfo.pAttachments = allAtt.data();
 		renderPassInfo.subpassCount = 1;
 		renderPassInfo.pSubpasses = &subpass;
 		renderPassInfo.dependencyCount = 1;
@@ -91,6 +100,39 @@ namespace EngineCore
 
 		if (vkCreateRenderPass(device.device(), &renderPassInfo, nullptr, &renderpass) != VK_SUCCESS)
 		{ throw std::runtime_error("failed to create renderpass"); }
+	}
+
+	void Renderpass::begin(VkCommandBuffer commandBuffer, uint32_t currentFrame) 
+	{
+		assert(isFrameStarted && "beginSwapchainRenderPass failed, no frame in progress");
+		assert(commandBuffer == getCurrentCommandBuffer() && "cannot begin renderpass on commandbuffer from other frame");
+
+		VkRenderPassBeginInfo renderPassInfo{};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassInfo.renderPass = renderpass;
+		renderPassInfo.framebuffer = framebuffer.get(currentFrame);
+
+		renderPassInfo.renderArea.offset = { 0, 0 };
+		renderPassInfo.renderArea.extent = swapchain->getSwapChainExtent();
+
+		std::array<VkClearValue, 2> clearValues{};
+		clearValues[0].color = { 0.01f, 0.01f, 0.01f, 1.0f };
+		clearValues[1].depthStencil = { 1.f, 0 };
+		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+		renderPassInfo.pClearValues = clearValues.data();
+
+		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE); // inline = no secondary cmdbuffers
+
+		VkViewport viewport{};
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		viewport.width = static_cast<float>(swapchain->getSwapChainExtent().width);
+		viewport.height = static_cast<float>(swapchain->getSwapChainExtent().height);
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		VkRect2D scissor{ {0, 0}, swapchain->getSwapChainExtent() };
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 	}
 
 }

@@ -5,19 +5,11 @@
 
 namespace EngineCore
 {
-	VkAttachmentDescription Attachment::getDescription() const
+
+	Attachment::Attachment(const AttachmentInfo& info_, EngineDevice& device)
+	: info{ info_ }
 	{
-		VkAttachmentDescription d{};
-		d.format = info.format;
-		d.samples = info.samples;
-		/* the following properties must be specified manually whenever this function is used:
-		loadOp, storeOp, stencilLoadOp, stencilStoreOp, initialLayout, finalLayout */
-		return d;
-	}
-	
-	void Attachment::createResources(EngineDevice& device)
-	{
-		auto& a = info; // attachment properties
+		auto& a = info_; // attachment properties
 
 		images.resize(a.imageCount);
 		imageMemorys.resize(a.imageCount);
@@ -57,6 +49,16 @@ namespace EngineCore
 			if (vkCreateImageView(device.device(), &viewInfo, nullptr, &imageViews[i]) != VK_SUCCESS)
 			{ throw std::runtime_error("failed to create attachment image view"); }
 		}
+	}
+
+	VkAttachmentDescription Attachment::getDescription() const
+	{
+		VkAttachmentDescription d{};
+		d.format = info.format;
+		d.samples = info.samples;
+		/* the following properties must be specified manually whenever this function is used:
+		loadOp, storeOp, stencilLoadOp, stencilStoreOp, initialLayout, finalLayout */
+		return d;
 	}
 
 
