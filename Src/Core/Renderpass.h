@@ -34,8 +34,10 @@ namespace EngineCore
 	{
 	public:
 		Renderpass(class EngineDevice& device, std::vector<AttachmentDescription> attachments);
-		
+		VkRenderPass& get() { return renderpass; }
+
 		void begin(VkCommandBuffer commandBuffer, uint32_t currentFrame);
+
 
 	private:
 		std::vector<AttachmentDescription> attachments;

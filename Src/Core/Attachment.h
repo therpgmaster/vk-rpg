@@ -41,7 +41,6 @@ namespace EngineCore
 		std::vector<VkImageView> imageViews;
 	};
 
-	// abstraction for a VkFramebuffer, bound to a specific renderpass at initialization time
 	/*class Framebuffer
 	{
 	public: 
