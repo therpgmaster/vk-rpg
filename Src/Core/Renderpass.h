@@ -2,39 +2,51 @@
 #include "Core/Attachment.h"
 
 #include <vector>
+#include <memory>
 
 namespace EngineCore 
 {
-	struct RpAttachment 
-	{ 
-		VkAttachmentDescription d{};
-		uint32_t i;
-		enum class Type { color, resolve, depthStencil } t;
-		RpAttachment(VkAttachmentDescription description, uint32_t index, Type type);
-	};
-
-	struct RpAttachmentsInfo
+	// just syntactic sugar, e.g. AttachmentLoadOp::LOAD
+	struct AttachmentLoadOp
 	{
-		std::vector<RpAttachment> colorAttachments;
-		std::vector<RpAttachment> resolveAttachments;
-		RpAttachment depthStencilAttachment;
-		bool hasDepthStencil = false;
-		VkImageLayout colorLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		VkImageLayout depthStencilLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		void add(const RpAttachment& a);
+		const static VkAttachmentLoadOp DONT_CARE = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		const static VkAttachmentLoadOp LOAD = VK_ATTACHMENT_LOAD_OP_LOAD;
+		const static VkAttachmentLoadOp CLEAR = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	};
+	struct AttachmentStoreOp
+	{
+		const static VkAttachmentStoreOp DONT_CARE = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		const static VkAttachmentStoreOp STORE = VK_ATTACHMENT_STORE_OP_STORE;
+	};
+	// info for renderpass creation
+	struct AttachmentDescription
+	{
+		VkAttachmentDescription d;
+		std::shared_ptr<Attachment> a;
 
+		AttachmentDescription(std::shared_ptr<Attachment> a, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp, 
+							VkImageLayout initialLayout, VkImageLayout finalLayout);
+
+		void setStencilOps(VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp);
+	};
 
 	class Renderpass 
 	{
 	public:
-		Renderpass(class EngineDevice& device, RpAttachmentsInfo a);
-
+		Renderpass(class EngineDevice& device, std::vector<AttachmentDescription> attachments);
+		
 		void begin(VkCommandBuffer commandBuffer, uint32_t currentFrame);
 
 	private:
+		std::vector<AttachmentDescription> attachments;
 		VkRenderPass renderpass;
-		Framebuffer framebuffer; // contains the rendertargets (attachments)
+		std::vector<VkFramebuffer> framebuffers;
+
+		class EngineDevice& device;
+		void createRenderpass();
+		void createFramebuffers();
+
+		
 
 	};
 

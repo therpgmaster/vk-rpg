@@ -28,9 +28,9 @@ namespace EngineCore {
 	{
 		createSwapChain();
 		createImageViews();
-		createRenderPass(samples);
-		createColorResources(samples); // multisampling
-		createDepthResources(samples);
+		//createRenderPass(samples);
+		//createColorResources(samples); // multisampling
+		//createDepthResources(samples);
 		createFramebuffers();
 		createSyncObjects();
 	}
@@ -194,7 +194,7 @@ namespace EngineCore {
 		swapChainExtent = extent;
 	}
 
-	void EngineSwapChain::createImageViews() 
+	void EngineSwapChain::createImageViews()
 	{
 		swapChainImageViews.resize(swapChainImages.size());
 		for (size_t i = 0; i < swapChainImages.size(); i++) 
@@ -215,6 +215,7 @@ namespace EngineCore {
 		}
 	}
 
+	// moved to renderpass class
 	void EngineSwapChain::createRenderPass(VkSampleCountFlagBits samples)
 	{
 		VkAttachmentDescription depthAttachment{};
@@ -313,6 +314,7 @@ namespace EngineCore {
 		}
 	}
 
+	// moved to attachment class
 	void EngineSwapChain::createDepthResources(VkSampleCountFlagBits samples) 
 	{
 		VkFormat depthFormat = findDepthFormat();
@@ -361,7 +363,7 @@ namespace EngineCore {
 			{ throw std::runtime_error("failed to create texture image view!"); }
 		}
 	}
-
+	// moved to attachment class
 	void EngineSwapChain::createColorResources(VkSampleCountFlagBits samples)
 	{
 		VkExtent2D swapChainExtent = getSwapChainExtent();

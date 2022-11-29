@@ -8,40 +8,41 @@
 
 namespace EngineCore
 {
-	// properties used to create an attachment's resources
-	struct AttachmentInfo 
+	enum class AttachmentType { COLOR, RESOLVE, DEPTH_STENCIL };
+	// used to create an attachment's resources
+	struct AttachmentInfo
 	{
 		size_t imageCount;
 		VkExtent2D extent;
 		VkImageUsageFlags usage;
 		VkImageAspectFlags aspectFlags;
+		// also used in renderpass initialization
 		VkFormat format;
 		VkSampleCountFlagBits samples;
+		AttachmentType type;
 	};
-
+	
 	// handles the image resources for a framebuffer attachment, may be used in multiple framebuffers
 	class Attachment
 	{
 	public:
-		Attachment(const AttachmentInfo& info_, class EngineDevice& device);
+		Attachment(class EngineDevice& device, const AttachmentInfo& info);
+		~Attachment();
 
-		// returns a structure for renderpass creation, must be populated further before use
-		VkAttachmentDescription getDescription() const;
-
-		VkImageView getImageView() const { return imageView; }
-		//VkImage getImage() const { return image; }
-		//VkImage getImageMemory() const { return imageMemory; }
+		const AttachmentInfo& getInfo() const { return info; }
+		const std::vector<VkImageView>& getImageViews() const { return imageViews; }
 
 	private:
 		AttachmentInfo info;
+		class EngineDevice& device;
 	
-		VkImage image;
-		VkDeviceMemory imageMemory;
-		VkImageView imageView;
+		std::vector<VkImage> images;
+		std::vector<VkDeviceMemory> imageMemorys;
+		std::vector<VkImageView> imageViews;
 	};
 
 	// abstraction for a VkFramebuffer, bound to a specific renderpass at initialization time
-	class Framebuffer 
+	/*class Framebuffer
 	{
 	public: 
 		Framebuffer(class EngineDevice& device, std::vector<VkImageView> imageViews, 
@@ -53,6 +54,6 @@ namespace EngineCore
 		VkFramebuffer framebuffer;
 		std::vector<Attachment> attachments;
 
-	};
+	};*/
 
 }  // namespace

@@ -5,81 +5,87 @@
 
 namespace EngineCore 
 {
-	RpAttachment::RpAttachment(VkAttachmentDescription description, uint32_t index, Type type)
-		: d{ description }, i{ index }, t{ type }{};
-	
-	void RpAttachmentsInfo::add(const RpAttachment& a)
+	AttachmentDescription::AttachmentDescription(std::shared_ptr<Attachment> a, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
+									VkImageLayout initialLayout, VkImageLayout finalLayout)
+		: a{ a }
 	{
-		switch (a.t)
-		{
-		case RpAttachment::Type::color: 
-			colorAttachments.push_back(a);
-			break;
-		case RpAttachment::Type::resolve: 
-			resolveAttachments.push_back(a);
-			break;
-		case RpAttachment::Type::depthStencil:
-			assert(!hasDepthStencil && "cannot add more than one depth-stencil attachment");
-			depthStencilAttachment = a;
-			hasDepthStencil = true;
-			break;
-		}
+		d = {};
+		d.loadOp = loadOp;
+		d.storeOp = storeOp;
+		d.format = a->getInfo().format;
+		d.samples = a->getInfo().samples;
+		// use setStencilOps function if stencil is used, disabled here by default
+		d.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		d.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		
+		d.initialLayout = initialLayout;
+		d.finalLayout = finalLayout;
+	};
+
+	void AttachmentDescription::setStencilOps(VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp) 
+	{
+		d.stencilLoadOp = stencilLoadOp;
+		d.stencilStoreOp = stencilStoreOp;
 	}
 
 
-	Renderpass::Renderpass(EngineDevice& device, RpAttachmentsInfo a)
+	Renderpass::Renderpass(EngineDevice& device, std::vector<AttachmentDescription> attachments)
+		: device{ device }, attachments{ attachments }
 	{
-		const auto numColor = a.colorAttachments.size();
-		const auto numResolve = a.resolveAttachments.size();
-		assert(numResolve == 0 || numResolve == numColor && "resolve attachments color attachments counts mismatch");
-		assert(a.hasDepthStencil || numColor > 0 && "no color or depth-stencil attachments specified");
+		createRenderpass();
+		createFramebuffers();
+	}
 
-		// descriptions for all the attachments
-		std::vector<VkAttachmentDescription> allAtt{};		allAtt.reserve(numColor + numResolve + a.hasDepthStencil);
-
-		// color attachment references
-		std::vector<VkAttachmentReference> colorRefs{};		colorRefs.reserve(numColor);
-		for (auto& x : a.colorAttachments) 
-		{
-			VkAttachmentReference ref{};
-			ref.layout = a.colorLayout;
-			ref.attachment = x.i;
-			colorRefs.push_back(ref);
-			allAtt.push_back(x.d);
-		}
-
-		// resolve attachment references
-		std::vector<VkAttachmentReference> resolveRefs{};	resolveRefs.reserve(numResolve);
-		for (auto& x : a.resolveAttachments)
-		{
-			VkAttachmentReference ref{};
-			ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			ref.attachment = x.i;
-			resolveRefs.push_back(ref);
-			allAtt.push_back(x.d);
-		}
-
-		// depth-stencil attachment reference
+	void Renderpass::createRenderpass()
+	{
+		auto& atts = attachments;
+		// descriptions and references for the attachments
+		std::vector<VkAttachmentDescription> all{};			all.reserve(atts.size());
+		std::vector<VkAttachmentReference> colorRefs{};		colorRefs.reserve(atts.size());
+		std::vector<VkAttachmentReference> resolveRefs{};	resolveRefs.reserve(atts.size());
 		VkAttachmentReference depthStencilRef{};
-		if (a.hasDepthStencil) 
+		bool hasDepthStencil = false;
+
+		uint32_t i = 0; // index for VkRenderPassCreateInfo pAttachments array (all)
+		for (auto& a : atts) 
 		{
 			VkAttachmentReference ref{};
-			ref.layout = a.depthStencilLayout;
-			ref.attachment = a.depthStencilAttachment.i;
-			depthStencilRef = ref;
-			allAtt.push_back(a.depthStencilAttachment.d);
+			ref.attachment = i++;
+			switch (a.a->getInfo().type) 
+			{
+			case AttachmentType::COLOR:
+				ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+				colorRefs.push_back(ref);
+				break;
+
+			case AttachmentType::RESOLVE:
+				ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+				resolveRefs.push_back(ref);
+				break;
+
+			case AttachmentType::DEPTH_STENCIL:
+				ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+				depthStencilRef = ref;
+				if (hasDepthStencil) { throw std::runtime_error("cannot add more than one depth stencil attachment"); }
+				hasDepthStencil = true;
+				break;
+			}
+			all.push_back(a.d);
 		}
-		
+
+		const auto numColor = colorRefs.size();
+		const auto numResolve = resolveRefs.size();
+		if (numResolve > 0 && numResolve != numColor); { throw std::runtime_error("resolve and color attachment counts mismatch"); }
+		if (numColor == 0 && !hasDepthStencil); { throw std::runtime_error("no color or depth-stencil attachments specified"); }
+
 		// create subpass
 		VkSubpassDescription subpass = {};
-		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; // may need its own parameter in the future
-		// subpass.inputAttachmentCount could be set here
+		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpass.colorAttachmentCount = numColor;
 		subpass.pColorAttachments = (numColor > 0) ? colorRefs.data() : NULL;
 		subpass.pResolveAttachments = (numResolve > 0) ? resolveRefs.data() : NULL;
-		subpass.pDepthStencilAttachment = (a.hasDepthStencil) ? &depthStencilRef : NULL;
+		subpass.pDepthStencilAttachment = (hasDepthStencil) ? &depthStencilRef : NULL;
 
-		// TODO
 		VkSubpassDependency dependency = {};
 		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 		dependency.srcAccessMask = 0;
@@ -88,11 +94,11 @@ namespace EngineCore
 		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-
+		// create renderpass
 		VkRenderPassCreateInfo renderPassInfo = {};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.attachmentCount = static_cast<uint32_t>(allAtt.size());
-		renderPassInfo.pAttachments = allAtt.data();
+		renderPassInfo.attachmentCount = static_cast<uint32_t>(all.size());
+		renderPassInfo.pAttachments = all.data();
 		renderPassInfo.subpassCount = 1;
 		renderPassInfo.pSubpasses = &subpass;
 		renderPassInfo.dependencyCount = 1;
@@ -102,18 +108,39 @@ namespace EngineCore
 		{ throw std::runtime_error("failed to create renderpass"); }
 	}
 
+	void Renderpass::createFramebuffers()
+	{
+		const auto imageCount = attachments[0].a->getInfo().imageCount;
+
+		framebuffers.resize(imageCount);
+		for (size_t i = 0; i < imageCount; i++)
+		{
+			std::vector<VkImageView> atts;		atts.reserve(imageCount);
+			for (auto& d : attachments) { atts.push_back(d.a.getImageViews()[i]); }
+
+			VkFramebufferCreateInfo framebufferInfo = {};
+			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			framebufferInfo.renderPass = renderpass;
+			framebufferInfo.attachmentCount = atts.size();
+			framebufferInfo.pAttachments = atts.data();
+			framebufferInfo.width = attachments[0].a.getInfo().extent.width;
+			framebufferInfo.height = attachments[0].a.getInfo().extent.height;
+			framebufferInfo.layers = 1;
+
+			if (vkCreateFramebuffer(device.device(), &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS)
+			{ throw std::runtime_error("failed to create framebuffer"); }
+		}
+	}
+
 	void Renderpass::begin(VkCommandBuffer commandBuffer, uint32_t currentFrame) 
 	{
-		assert(isFrameStarted && "beginSwapchainRenderPass failed, no frame in progress");
-		assert(commandBuffer == getCurrentCommandBuffer() && "cannot begin renderpass on commandbuffer from other frame");
-
 		VkRenderPassBeginInfo renderPassInfo{};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderPassInfo.renderPass = renderpass;
-		renderPassInfo.framebuffer = framebuffer.get(currentFrame);
+		renderPassInfo.framebuffer = framebuffers[currentFrame];
 
 		renderPassInfo.renderArea.offset = { 0, 0 };
-		renderPassInfo.renderArea.extent = swapchain->getSwapChainExtent();
+		renderPassInfo.renderArea.extent = attachments[0].a.getInfo().extent;
 
 		std::array<VkClearValue, 2> clearValues{};
 		clearValues[0].color = { 0.01f, 0.01f, 0.01f, 1.0f };

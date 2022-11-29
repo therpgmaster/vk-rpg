@@ -69,17 +69,17 @@ namespace EngineCore {
 		VkFormat swapChainDepthFormat;
 		VkExtent2D swapChainExtent;
 
-		std::vector<VkFramebuffer> swapChainFramebuffers;
+		// renderpass
 		VkRenderPass renderPass;
-
-		// framebuffer attachments
 		std::vector<VkImage> depthImages;
 		std::vector<VkDeviceMemory> depthImageMemorys;
 		std::vector<VkImageView> depthImageViews;
 		std::vector<VkImage> multisampleImages;
 		std::vector<VkDeviceMemory> multisampleImageMemorys;
 		std::vector<VkImageView> multisampleImageViews;
+		// renderpass
 
+		std::vector<VkFramebuffer> swapChainFramebuffers;
 		std::vector<VkImage> swapChainImages;
 		std::vector<VkImageView> swapChainImageViews;
 

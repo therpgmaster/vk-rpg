@@ -6,10 +6,10 @@
 namespace EngineCore
 {
 
-	Attachment::Attachment(const AttachmentInfo& info_, EngineDevice& device)
-	: info{ info_ }
+	Attachment::Attachment(EngineDevice& device, const AttachmentInfo& info)
+		: info{ info }, device{ device }
 	{
-		auto& a = info_; // attachment properties
+		auto& a = info; // image properties
 
 		images.resize(a.imageCount);
 		imageMemorys.resize(a.imageCount);
@@ -51,18 +51,18 @@ namespace EngineCore
 		}
 	}
 
-	VkAttachmentDescription Attachment::getDescription() const
+	Attachment::~Attachment()
 	{
-		VkAttachmentDescription d{};
-		d.format = info.format;
-		d.samples = info.samples;
-		/* the following properties must be specified manually whenever this function is used:
-		loadOp, storeOp, stencilLoadOp, stencilStoreOp, initialLayout, finalLayout */
-		return d;
+		for (int i = 0; i < images.size(); i++)
+		{
+			vkDestroyImageView(device.device(), imageViews[i], nullptr);
+			vkDestroyImage(device.device(), images[i], nullptr);
+			vkFreeMemory(device.device(), imageMemorys[i], nullptr);
+		}
 	}
 
 
-	Framebuffer::Framebuffer(EngineDevice& device, std::vector<VkImageView> imageViews,
+	/*Framebuffer::Framebuffer(EngineDevice& device, std::vector<VkImageView> imageViews,
 							VkRenderPass renderPass, VkExtent2D extent, uint32_t numCopies)
 	{
 		framebuffers.resize(numCopies);
@@ -79,7 +79,7 @@ namespace EngineCore
 			if (vkCreateFramebuffer(device.device(), &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS)
 			{ throw std::runtime_error("failed to create framebuffer"); }
 		}
-	}
+	}*/
 
 }
 
