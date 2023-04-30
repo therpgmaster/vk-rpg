@@ -71,10 +71,13 @@ namespace EngineCore
 		auto mat1 = materialsMgr.createMaterial(MaterialCreateInfo(shader, dsetLayout));
 		//auto mat2 = materialsMgr.createMaterial(MaterialCreateInfo(shader2, setLayout));
 
-		if (loadedMeshes.size() > 0 && loadedMeshes[0]) { for (auto* m : loadedMeshes) 
+		if (loadedMeshes.size() > 0 && loadedMeshes[0]) 
 		{ 
-			//if (m->useFakeScale) { m->setMaterial(mat2); continue; } //FakeScaleTest082
-			m->setMaterial(mat1); }
+			for (auto* m : loadedMeshes) 
+			{ 
+				//if (m->useFakeScale) { m->setMaterial(mat2); continue; } //FakeScaleTest082
+				m->setMaterial(mat1); 
+			}
 		}
 		else { throw std::runtime_error("could not access loaded mesh"); }
 

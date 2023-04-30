@@ -13,13 +13,13 @@ namespace EngineCore
 	class EngineDevice;
 	class EngineRenderSettings;
 
-	class EngineRenderer
+	class Renderer
 	{
 	public:
-		EngineRenderer(EngineWindow& windowIn, EngineDevice& deviceIn, EngineRenderSettings& renderSettingsIn);
-		~EngineRenderer();
-		EngineRenderer(const EngineRenderer&) = delete;
-		EngineRenderer& operator=(const EngineRenderer&) = delete;
+		Renderer(EngineWindow& windowIn, EngineDevice& deviceIn, EngineRenderSettings& renderSettingsIn);
+		~Renderer();
+		Renderer(const Renderer&) = delete;
+		Renderer& operator=(const Renderer&) = delete;
 
 		
 		VkRenderPass getSwapchainRenderPass() const;

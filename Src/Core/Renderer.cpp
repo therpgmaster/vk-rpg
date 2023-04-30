@@ -3,6 +3,7 @@
 #include "Core/Window.h"
 #include "Core/GPU/Device.h"
 #include "Core/EngineSettings.h"
+#include "Core/Renderpass.h"
 
 #include <stdexcept>
 #include <array>
@@ -10,16 +11,16 @@
 
 namespace EngineCore
 {
-	EngineRenderer::EngineRenderer(EngineWindow& windowIn, EngineDevice& deviceIn, EngineRenderSettings& renderSettingsIn)
-							: window{windowIn}, device{deviceIn}, renderSettings{renderSettingsIn}
+	Renderer::Renderer(EngineWindow& window, EngineDevice& device, EngineRenderSettings& renderSettings)
+							: window{window}, device{device}, renderSettings{renderSettings}
 	{
-		recreateSwapchain();
+		recreate();
 		createCommandBuffers();
 	}
 
-	EngineRenderer::~EngineRenderer() { freeCommandBuffers(); }
+	Renderer::~Renderer() { freeCommandBuffers(); }
 
-	void EngineRenderer::createCommandBuffers()
+	void Renderer::createCommandBuffers()
 	{
 		commandBuffers.resize(EngineSwapChain::MAX_FRAMES_IN_FLIGHT);
 		VkCommandBufferAllocateInfo allocInfo{};
@@ -33,14 +34,20 @@ namespace EngineCore
 		}
 	}
 
-	void EngineRenderer::freeCommandBuffers()
+	void Renderer::freeCommandBuffers()
 	{
 		vkFreeCommandBuffers(device.device(), device.getCommandPool(),
 			static_cast<float>(commandBuffers.size()), commandBuffers.data());
 		commandBuffers.clear();
 	}
 
-	void EngineRenderer::recreateSwapchain()
+	void Renderer::recreate()
+	{
+		recreateRenderpasses();
+		recreateSwapchain();
+	}
+
+	void Renderer::recreateSwapchain()
 	{
 		auto extent = window.getExtent();
 		while (extent.width == 0 || extent.height == 0)
@@ -65,13 +72,30 @@ namespace EngineCore
 		}
 	}
 
-	VkCommandBuffer EngineRenderer::beginFrame() 
+	void Renderer::recreateRenderpasses() 
+	{
+		AttachmentCreateInfo colorInfo(AttachmentType::COLOR, *swapchain, renderSettings.sampleCountMSAA);
+		AttachmentCreateInfo depthInfo(AttachmentType::DEPTH, *swapchain, renderSettings.sampleCountMSAA);
+		Attachment colorAttachment(device, colorInfo);
+		Attachment depthAttachment(device, depthInfo);
+
+		Renderpass geometryPass(device, 
+			{
+				AttachmentUse(colorAttachment, AttachmentLoadOp::CLEAR, AttachmentStoreOp::STORE,
+								VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL),
+
+				AttachmentUse(depthAttachment, AttachmentLoadOp::CLEAR, AttachmentStoreOp::STORE,
+								VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+			});
+	}
+
+	VkCommandBuffer Renderer::beginFrame() 
 	{
 		assert(!isFrameStarted && "beginFrame failed, frame already in progress");
 		
 		auto result = swapchain->acquireNextImage(&currentImageIndex);
 		if (result == VK_ERROR_OUT_OF_DATE_KHR)
-		{ recreateSwapchain(); return nullptr; }
+		{ recreate(); return nullptr; }
 		if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
 		{ throw std::runtime_error("failed to acquire swapchain image"); }
 
@@ -87,7 +111,7 @@ namespace EngineCore
 		return commandBuffer;
 	}
 
-	void EngineRenderer::endFrame() 
+	void Renderer::endFrame() 
 	{
 		assert(isFrameStarted && "endFrame failed, no frame in progress");
 
@@ -100,7 +124,7 @@ namespace EngineCore
 		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || window.wasWindowResized())
 		{
 			window.resetWindowResizedFlag();
-			recreateSwapchain();
+			recreate();
 		}
 		else if (result != VK_SUCCESS)
 		{
@@ -111,7 +135,7 @@ namespace EngineCore
 		currentFrameIndex = (currentFrameIndex + 1) % EngineSwapChain::MAX_FRAMES_IN_FLIGHT;
 	}
 
-	void EngineRenderer::beginSwapchainRenderPass(VkCommandBuffer commandBuffer) 
+	void Renderer::beginRenderpass(VkCommandBuffer commandBuffer)//TODO: legacy
 	{
 		assert(isFrameStarted && "beginSwapchainRenderPass failed, no frame in progress");
 		assert(commandBuffer == getCurrentCommandBuffer() && "cannot begin renderpass on commandbuffer from other frame");
@@ -144,15 +168,8 @@ namespace EngineCore
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 	}
 
-	void EngineRenderer::endSwapchainRenderPass(VkCommandBuffer commandBuffer) 
-	{
-		assert(isFrameStarted && "endSwapchainRenderPass failed, no frame in progress");
-		assert(commandBuffer == getCurrentCommandBuffer() && "cannot end renderpass on commandbuffer from other frame");
-		vkCmdEndRenderPass(commandBuffer);	
-	}
+	VkRenderPass Renderer::getSwapchainRenderPass() const { return swapchain->getRenderPass(); }
 
-	VkRenderPass EngineRenderer::getSwapchainRenderPass() const { return swapchain->getRenderPass(); }
+	float Renderer::getAspectRatio() const { return swapchain->getExtentAspectRatio(); }
 
-	float EngineRenderer::getAspectRatio() const { return swapchain->getExtentAspectRatio(); }
-
-} // namespace
+}

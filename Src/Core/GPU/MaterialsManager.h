@@ -4,14 +4,14 @@
 
 namespace EngineCore
 {
-	class EngineRenderer;
+	class Renderer;
 
 	/*	the materials manager holds material objects that are in active use,
 	*	and will contain functionality for sorting, garbage collection, etc. */
 	class MaterialsManager 
 	{
 	public:
-		MaterialsManager(EngineRenderer& r, const EngineRenderSettings& rs, EngineDevice& d);
+		MaterialsManager(Renderer& r, const EngineRenderSettings& rs, EngineDevice& d);
 
 		/*	creates a new managed material and returns a handle to it 
 			do not attempt to copy or move materials created this way! 
@@ -36,7 +36,7 @@ namespace EngineCore
 		void freeUnusedMaterials();
 
 		EngineDevice& device;
-		EngineRenderer& renderer;
+		Renderer& renderer;
 		const EngineRenderSettings& engineRenderSettings;
 	};
 }

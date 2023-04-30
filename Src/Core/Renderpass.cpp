@@ -1,77 +1,47 @@
 #include "Core/Renderpass.h"
 #include "Core/GPU/Device.h"
+#include "Core/Renderer.h"
 
+#include <array>
 #include <stdexcept>
+#include <cassert>
 
 namespace EngineCore 
 {
-	AttachmentDescription::AttachmentDescription(std::shared_ptr<Attachment> a, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
-									VkImageLayout initialLayout, VkImageLayout finalLayout)
-		: a{ a }
+	Renderpass::Renderpass(EngineDevice& device, const std::vector<AttachmentUse>& attachmentUses)
+		: device{ device }
 	{
-		d = {};
-		d.loadOp = loadOp;
-		d.storeOp = storeOp;
-		d.format = a->getInfo().format;
-		d.samples = a->getInfo().samples;
-		// use setStencilOps function if stencil is used, disabled here by default
-		d.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		d.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		
-		d.initialLayout = initialLayout;
-		d.finalLayout = finalLayout;
-	};
+		attachments.reserve(attachmentUses.size());
+		attachmentDescriptions.reserve(attachmentUses.size());
+		for (auto& a : attachmentUses)
+		{
+			attachments.push_back(std::shared_ptr<Attachment>(&a.attachment)); // acquire ownership of attachment
+			attachmentDescriptions.push_back(a.description); // add VkAttachmentDescription
+		}
 
-	void AttachmentDescription::setStencilOps(VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp) 
-	{
-		d.stencilLoadOp = stencilLoadOp;
-		d.stencilStoreOp = stencilStoreOp;
-	}
-
-
-	Renderpass::Renderpass(EngineDevice& device, std::vector<AttachmentDescription> attachments)
-		: device{ device }, attachments{ attachments }
-	{
+		assert(areAttachmentsCompatible() && "failed to create renderpass, incompatible attachment");
 		createRenderpass();
 		createFramebuffers();
 	}
 
+	Renderpass::~Renderpass() 
+	{
+		for (auto f : framebuffers) { vkDestroyFramebuffer(device.device(), f, nullptr); }
+	}
+
+	bool Renderpass::areAttachmentsCompatible() const
+	{
+		for (const auto& a : attachments) { if (!attachments[0]->isCompatible(*a.get())) { return false; } }
+		return true;
+	}
+
 	void Renderpass::createRenderpass()
 	{
-		auto& atts = attachments;
 		// descriptions and references for the attachments
-		std::vector<VkAttachmentDescription> all{};			all.reserve(atts.size());
-		std::vector<VkAttachmentReference> colorRefs{};		colorRefs.reserve(atts.size());
-		std::vector<VkAttachmentReference> resolveRefs{};	resolveRefs.reserve(atts.size());
+		std::vector<VkAttachmentReference> colorRefs, resolveRefs;
 		VkAttachmentReference depthStencilRef{};
-		bool hasDepthStencil = false;
-
-		uint32_t i = 0; // index for VkRenderPassCreateInfo pAttachments array (all)
-		for (auto& a : atts) 
-		{
-			VkAttachmentReference ref{};
-			ref.attachment = i++;
-			switch (a.a->getInfo().type) 
-			{
-			case AttachmentType::COLOR:
-				ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-				colorRefs.push_back(ref);
-				break;
-
-			case AttachmentType::RESOLVE:
-				ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-				resolveRefs.push_back(ref);
-				break;
-
-			case AttachmentType::DEPTH_STENCIL:
-				ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-				depthStencilRef = ref;
-				if (hasDepthStencil) { throw std::runtime_error("cannot add more than one depth stencil attachment"); }
-				hasDepthStencil = true;
-				break;
-			}
-			all.push_back(a.d);
-		}
+		bool hasDepthStencil;
+		createAttachmentReferences(colorRefs, resolveRefs, depthStencilRef, hasDepthStencil);
 
 		const auto numColor = colorRefs.size();
 		const auto numResolve = resolveRefs.size();
@@ -97,8 +67,8 @@ namespace EngineCore
 		// create renderpass
 		VkRenderPassCreateInfo renderPassInfo = {};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.attachmentCount = static_cast<uint32_t>(all.size());
-		renderPassInfo.pAttachments = all.data();
+		renderPassInfo.attachmentCount = static_cast<uint32_t>(attachmentDescriptions.size());
+		renderPassInfo.pAttachments = attachmentDescriptions.data();
 		renderPassInfo.subpassCount = 1;
 		renderPassInfo.pSubpasses = &subpass;
 		renderPassInfo.dependencyCount = 1;
@@ -108,23 +78,57 @@ namespace EngineCore
 		{ throw std::runtime_error("failed to create renderpass"); }
 	}
 
+	void Renderpass::createAttachmentReferences(std::vector<VkAttachmentReference>& color, std::vector<VkAttachmentReference>& resolve,
+												VkAttachmentReference& depthStencil, bool& hasDepthStencil)
+	{
+		hasDepthStencil = false;
+		uint32_t i = 0; // index for VkRenderPassCreateInfo pAttachments array (all)
+		for (auto& attachment : attachments)
+		{
+			VkAttachmentReference ref{};
+			ref.attachment = i++;
+
+			ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+			switch (attachment->info().type)
+			{
+			case AttachmentType::COLOR:
+				color.push_back(ref);
+				break;
+
+			case AttachmentType::RESOLVE:
+				resolve.push_back(ref);
+				break;
+
+			case AttachmentType::DEPTH_STENCIL:
+				ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+				assert(!hasDepthStencil && "cannot add more than one depth stencil attachment");
+				hasDepthStencil = true;
+				depthStencil = ref;
+				break;
+			}
+		}
+	}
+
 	void Renderpass::createFramebuffers()
 	{
-		const auto imageCount = attachments[0].a->getInfo().imageCount;
+		const auto count = attachments[0]->info().imageCount;
+		const auto extent = attachments[0]->info().extent;
 
-		framebuffers.resize(imageCount);
-		for (size_t i = 0; i < imageCount; i++)
+		framebuffers.resize(count);
+		for (size_t i = 0; i < count; i++)
 		{
-			std::vector<VkImageView> atts;		atts.reserve(imageCount);
-			for (auto& d : attachments) { atts.push_back(d.a.getImageViews()[i]); }
+			// for each attachment, get the corresponding image view
+			std::vector<VkImageView> attachmentViews;
+			for (auto& a : attachments) { attachmentViews.push_back(a->getImageViews()[i]); }
 
 			VkFramebufferCreateInfo framebufferInfo = {};
 			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 			framebufferInfo.renderPass = renderpass;
-			framebufferInfo.attachmentCount = atts.size();
-			framebufferInfo.pAttachments = atts.data();
-			framebufferInfo.width = attachments[0].a.getInfo().extent.width;
-			framebufferInfo.height = attachments[0].a.getInfo().extent.height;
+			framebufferInfo.attachmentCount = attachmentViews.size();
+			framebufferInfo.pAttachments = attachmentViews.data();
+			framebufferInfo.width = extent.width;
+			framebufferInfo.height = extent.height;
 			framebufferInfo.layers = 1;
 
 			if (vkCreateFramebuffer(device.device(), &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS)
@@ -132,15 +136,25 @@ namespace EngineCore
 		}
 	}
 
-	void Renderpass::begin(VkCommandBuffer commandBuffer, uint32_t currentFrame) 
+	void Renderpass::begin(const Renderer& renderer)
 	{
+		begin(renderer.getCurrentCommandBuffer(), renderer.getFrameIndex());
+	}
+
+	void Renderpass::begin(VkCommandBuffer cmdBuffer, uint32_t framebufferIndex)
+	{
+		commandBuffer = cmdBuffer;
+		assert(commandBuffer != VK_NULL_HANDLE && "begin renderpass null command buffer");
+
+		const auto extent = attachments[0]->info().extent; // framebuffer extent
+
 		VkRenderPassBeginInfo renderPassInfo{};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderPassInfo.renderPass = renderpass;
-		renderPassInfo.framebuffer = framebuffers[currentFrame];
+		renderPassInfo.framebuffer = framebuffers[framebufferIndex];
 
 		renderPassInfo.renderArea.offset = { 0, 0 };
-		renderPassInfo.renderArea.extent = attachments[0].a.getInfo().extent;
+		renderPassInfo.renderArea.extent = extent;
 
 		std::array<VkClearValue, 2> clearValues{};
 		clearValues[0].color = { 0.01f, 0.01f, 0.01f, 1.0f };
@@ -148,18 +162,24 @@ namespace EngineCore
 		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
 		renderPassInfo.pClearValues = clearValues.data();
 
-		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE); // inline = no secondary cmdbuffers
+		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 		VkViewport viewport{};
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
-		viewport.width = static_cast<float>(swapchain->getSwapChainExtent().width);
-		viewport.height = static_cast<float>(swapchain->getSwapChainExtent().height);
+		viewport.width = static_cast<float>(extent.width);
+		viewport.height = static_cast<float>(extent.height);
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
-		VkRect2D scissor{ {0, 0}, swapchain->getSwapChainExtent() };
+		VkRect2D scissor{ {0, 0}, extent };
 		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+	}
+
+	void Renderpass::end()
+	{
+		assert(commandBuffer != VK_NULL_HANDLE && "end renderpass null command buffer");
+		vkCmdEndRenderPass(commandBuffer);
 	}
 
 }

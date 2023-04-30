@@ -92,7 +92,7 @@ namespace EngineCore
 		// render device (instantiates vulkan)
 		EngineDevice device{ window };
 		// the renderer manages the swapchain and the vulkan command buffers
-		EngineRenderer renderer{ window, device, renderSettings };
+		Renderer renderer{ window, device, renderSettings };
 		// the primary materials manager (contains the master material objects)
 		MaterialsManager materialsMgr{ renderer, renderSettings, device };
 

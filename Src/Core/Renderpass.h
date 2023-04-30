@@ -1,55 +1,37 @@
 #pragma once
 #include "Core/Attachment.h"
 
-#include <vector>
 #include <memory>
 
 namespace EngineCore 
 {
-	// just syntactic sugar, e.g. AttachmentLoadOp::LOAD
-	struct AttachmentLoadOp
-	{
-		const static VkAttachmentLoadOp DONT_CARE = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		const static VkAttachmentLoadOp LOAD = VK_ATTACHMENT_LOAD_OP_LOAD;
-		const static VkAttachmentLoadOp CLEAR = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	};
-	struct AttachmentStoreOp
-	{
-		const static VkAttachmentStoreOp DONT_CARE = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		const static VkAttachmentStoreOp STORE = VK_ATTACHMENT_STORE_OP_STORE;
-	};
-	// info for renderpass creation
-	struct AttachmentDescription
-	{
-		VkAttachmentDescription d;
-		std::shared_ptr<Attachment> a;
-
-		AttachmentDescription(std::shared_ptr<Attachment> a, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp, 
-							VkImageLayout initialLayout, VkImageLayout finalLayout);
-
-		void setStencilOps(VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp);
-	};
-
+	// acquires shared ownership of the Attachment objects
 	class Renderpass 
 	{
 	public:
-		Renderpass(class EngineDevice& device, std::vector<AttachmentDescription> attachments);
-		VkRenderPass& get() { return renderpass; }
+		Renderpass(class EngineDevice& device, const std::vector<AttachmentUse>& attachmentUses);
+		~Renderpass();
 
-		void begin(VkCommandBuffer commandBuffer, uint32_t currentFrame);
-
+		// uses the renderer's current command buffer to begin the renderpass
+		void begin(const class Renderer& renderer);
+		void begin(VkCommandBuffer cmdBuffer, uint32_t framebufferIndex);
+		void end();
 
 	private:
-		std::vector<AttachmentDescription> attachments;
 		VkRenderPass renderpass;
-		std::vector<VkFramebuffer> framebuffers;
-
+		std::vector<VkFramebuffer> framebuffers; // multiple, to support one per swapchain image
+		VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
 		class EngineDevice& device;
-		void createRenderpass();
-		void createFramebuffers();
 
+		std::vector<std::shared_ptr<Attachment>> attachments;
+		std::vector<VkAttachmentDescription> attachmentDescriptions;
 		
+		bool areAttachmentsCompatible() const;
+		void createRenderpass();
+		void createAttachmentReferences(std::vector<VkAttachmentReference>& color, std::vector<VkAttachmentReference>& resolve, 
+										VkAttachmentReference& depthStencil, bool& hasDepthStencil);
+		void createFramebuffers();
 
 	};
 
-}  // namespace
+}

@@ -1,4 +1,4 @@
-#include "Core/Renderer.h"
+#include "Core/Renderer_legacy.h"
 
 #include "Core/Window.h"
 #include "Core/GPU/Device.h"
@@ -10,16 +10,16 @@
 
 namespace EngineCore
 {
-	EngineRenderer::EngineRenderer(EngineWindow& windowIn, EngineDevice& deviceIn, EngineRenderSettings& renderSettingsIn)
+	Renderer::Renderer(EngineWindow& windowIn, EngineDevice& deviceIn, EngineRenderSettings& renderSettingsIn)
 							: window{windowIn}, device{deviceIn}, renderSettings{renderSettingsIn}
 	{
 		recreateSwapchain();
 		createCommandBuffers();
 	}
 
-	EngineRenderer::~EngineRenderer() { freeCommandBuffers(); }
+	Renderer::~Renderer() { freeCommandBuffers(); }
 
-	void EngineRenderer::createCommandBuffers()
+	void Renderer::createCommandBuffers()
 	{
 		commandBuffers.resize(EngineSwapChain::MAX_FRAMES_IN_FLIGHT);
 		VkCommandBufferAllocateInfo allocInfo{};
@@ -33,14 +33,14 @@ namespace EngineCore
 		}
 	}
 
-	void EngineRenderer::freeCommandBuffers()
+	void Renderer::freeCommandBuffers()
 	{
 		vkFreeCommandBuffers(device.device(), device.getCommandPool(),
 			static_cast<float>(commandBuffers.size()), commandBuffers.data());
 		commandBuffers.clear();
 	}
 
-	void EngineRenderer::recreateSwapchain()
+	void Renderer::recreateSwapchain()
 	{
 		auto extent = window.getExtent();
 		while (extent.width == 0 || extent.height == 0)
@@ -65,7 +65,7 @@ namespace EngineCore
 		}
 	}
 
-	VkCommandBuffer EngineRenderer::beginFrame() 
+	VkCommandBuffer Renderer::beginFrame() 
 	{
 		assert(!isFrameStarted && "beginFrame failed, frame already in progress");
 		
@@ -87,7 +87,7 @@ namespace EngineCore
 		return commandBuffer;
 	}
 
-	void EngineRenderer::endFrame() 
+	void Renderer::endFrame() 
 	{
 		assert(isFrameStarted && "endFrame failed, no frame in progress");
 
@@ -111,7 +111,7 @@ namespace EngineCore
 		currentFrameIndex = (currentFrameIndex + 1) % EngineSwapChain::MAX_FRAMES_IN_FLIGHT;
 	}
 
-	void EngineRenderer::beginSwapchainRenderPass(VkCommandBuffer commandBuffer) 
+	void Renderer::beginSwapchainRenderPass(VkCommandBuffer commandBuffer) 
 	{
 		assert(isFrameStarted && "beginSwapchainRenderPass failed, no frame in progress");
 		assert(commandBuffer == getCurrentCommandBuffer() && "cannot begin renderpass on commandbuffer from other frame");
@@ -144,15 +144,15 @@ namespace EngineCore
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 	}
 
-	void EngineRenderer::endSwapchainRenderPass(VkCommandBuffer commandBuffer) 
+	void Renderer::endSwapchainRenderPass(VkCommandBuffer commandBuffer) 
 	{
 		assert(isFrameStarted && "endSwapchainRenderPass failed, no frame in progress");
 		assert(commandBuffer == getCurrentCommandBuffer() && "cannot end renderpass on commandbuffer from other frame");
 		vkCmdEndRenderPass(commandBuffer);	
 	}
 
-	VkRenderPass EngineRenderer::getSwapchainRenderPass() const { return swapchain->getRenderPass(); }
+	VkRenderPass Renderer::getSwapchainRenderPass() const { return swapchain->getRenderPass(); }
 
-	float EngineRenderer::getAspectRatio() const { return swapchain->getExtentAspectRatio(); }
+	float Renderer::getAspectRatio() const { return swapchain->getExtentAspectRatio(); }
 
 } // namespace

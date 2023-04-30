@@ -3,7 +3,7 @@
 
 namespace EngineCore 
 {
-	MaterialsManager::MaterialsManager(EngineRenderer& r, const EngineRenderSettings& rs, EngineDevice& d)
+	MaterialsManager::MaterialsManager(Renderer& r, const EngineRenderSettings& rs, EngineDevice& d)
 		: renderer{ r }, engineRenderSettings{ rs }, device{ d } {}
 	
 	MaterialHandle MaterialsManager::createMaterial(const MaterialCreateInfo& matInfo)

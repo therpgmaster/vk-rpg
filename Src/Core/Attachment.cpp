@@ -1,13 +1,37 @@
 #include "Core/Attachment.h"
 #include "Core/GPU/Device.h"
+#include "Core/Swapchain.h"
 
 #include <stdexcept>
 
 namespace EngineCore
 {
 
-	Attachment::Attachment(EngineDevice& device, const AttachmentInfo& info)
-		: info{ info }, device{ device }
+	AttachmentCreateInfo::AttachmentCreateInfo(AttachmentType t, EngineSwapChain& swp, VkSampleCountFlagBits s)
+	{
+		AttachmentCreateInfo i = {};
+		i.type = t;
+		i.samples = s;
+		i.imageCount = swp.imageCount();
+		i.extent = swp.getSwapChainExtent();
+
+		// defaults for color attachments
+		i.format = swp.getSwapChainImageFormat();
+		i.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; // note: removed VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT
+		i.aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
+
+		if (t == AttachmentType::DEPTH || t == AttachmentType::DEPTH_STENCIL)
+		{
+			// defaults for depth attachments
+			i.format = swp.getDepthFormat();
+			i.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+			i.aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
+			if (t == AttachmentType::DEPTH_STENCIL) { i.aspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT; } // set stencil bit as well
+		}
+	}
+
+	Attachment::Attachment(EngineDevice& device, const AttachmentCreateInfo& info)
+		: createInfo{ info }, device{ device }
 	{
 		auto& a = info; // image properties
 
@@ -17,6 +41,7 @@ namespace EngineCore
 
 		for (int i = 0; i < images.size(); i++) 
 		{
+			// create images
 			VkImageCreateInfo imageInfo{};
 			imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 			imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -35,6 +60,7 @@ namespace EngineCore
 
 			device.createImageWithInfo(imageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, images[i], imageMemorys[i]);
 
+			// create image views
 			VkImageViewCreateInfo viewInfo{};
 			viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 			viewInfo.image = images[i];
@@ -45,7 +71,7 @@ namespace EngineCore
 			viewInfo.subresourceRange.levelCount = 1;
 			viewInfo.subresourceRange.baseArrayLayer = 0;
 			viewInfo.subresourceRange.layerCount = 1;
-
+		
 			if (vkCreateImageView(device.device(), &viewInfo, nullptr, &imageViews[i]) != VK_SUCCESS)
 			{ throw std::runtime_error("failed to create attachment image view"); }
 		}
@@ -61,25 +87,36 @@ namespace EngineCore
 		}
 	}
 
-
-	/*Framebuffer::Framebuffer(EngineDevice& device, std::vector<VkImageView> imageViews,
-							VkRenderPass renderPass, VkExtent2D extent, uint32_t numCopies)
+	bool Attachment::isCompatible(const Attachment& b) const 
 	{
-		framebuffers.resize(numCopies);
-		for (size_t i = 0; i < numCopies; i++)
-		{
-			VkFramebufferCreateInfo framebufferInfo = {};
-			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			framebufferInfo.renderPass = renderPass;
-			framebufferInfo.attachmentCount = static_cast<uint32_t>(imageViews.size());
-			framebufferInfo.pAttachments = imageViews.data();
-			framebufferInfo.width = extent.width;
-			framebufferInfo.height = extent.height;
-			framebufferInfo.layers = 1;
-			if (vkCreateFramebuffer(device.device(), &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS)
-			{ throw std::runtime_error("failed to create framebuffer"); }
-		}
-	}*/
+		return (
+				createInfo.samples == b.createInfo.samples &&
+				createInfo.extent.width == b.createInfo.extent.width &&
+				createInfo.extent.height == b.createInfo.extent.height
+			);
+	}
+
+	AttachmentUse::AttachmentUse(Attachment& attachment, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
+		VkImageLayout initialLayout, VkImageLayout finalLayout)
+		: attachment{ attachment }, description{}
+	{
+		description.loadOp = loadOp;
+		description.storeOp = storeOp;
+		description.format = attachment.info().format;
+		description.samples = attachment.info().samples;
+		// use setStencilOps function if stencil is used, disabled here by default
+		description.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		description.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+		description.initialLayout = initialLayout;
+		description.finalLayout = finalLayout;
+	};
+
+	void AttachmentUse::setStencilOps(VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp)
+	{
+		description.stencilLoadOp = stencilLoadOp;
+		description.stencilStoreOp = stencilStoreOp;
+	}
 
 }
 

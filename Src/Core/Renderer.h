@@ -8,45 +8,53 @@
 
 namespace EngineCore
 {
-	// forward-declarations
 	class EngineWindow;
 	class EngineDevice;
 	class EngineRenderSettings;
 
-	class EngineRenderer
+	class Renderer
 	{
 	public:
-		EngineRenderer(EngineWindow& windowIn, EngineDevice& deviceIn, EngineRenderSettings& renderSettingsIn);
-		~EngineRenderer();
-		EngineRenderer(const EngineRenderer&) = delete;
-		EngineRenderer& operator=(const EngineRenderer&) = delete;
+		Renderer(EngineWindow& window, EngineDevice& device, EngineRenderSettings& renderSettings);
+		~Renderer();
+		Renderer(const Renderer&) = delete;
+		Renderer& operator=(const Renderer&) = delete;
 
 		
 		VkRenderPass getSwapchainRenderPass() const; // used in pipeline creation
+
 		bool getIsFrameInProgress() const { return isFrameStarted; }
+
 		VkCommandBuffer getCurrentCommandBuffer() const 
 		{ 
 			assert(isFrameStarted && "getCurrentCommandBuffer failed, no frame in progress");
 			return commandBuffers[currentFrameIndex];
 		}
+
 		int getFrameIndex() const
 		{
 			assert(isFrameStarted && "getFrameIndex failed, no frame in progress");
 			return currentFrameIndex;
 		}
+
 		float getAspectRatio() const;
 
 		// returns a command buffer to record commands into
 		VkCommandBuffer beginFrame();
 		// submit command buffer to finalize the frame
 		void endFrame();
-		void beginSwapchainRenderPass(VkCommandBuffer commandBuffer);/* MOVED TO RENDERPASS CLASS */
-		void endSwapchainRenderPass(VkCommandBuffer commandBuffer);
+
+		void beginRenderpass(VkCommandBuffer commandBuffer);//TODO: legacy
 
 	private:
 		void createCommandBuffers();
 		void freeCommandBuffers();
+
+		// constructs a new set of renderpasses and a swapchain
+		void recreate();
 		void recreateSwapchain();
+		void recreateRenderpasses();
+		std::unique_ptr<class Renderpass> renderpasses;
 
 		EngineWindow& window;
 		EngineDevice& device;
@@ -59,4 +67,4 @@ namespace EngineCore
 		bool isFrameStarted{ false };
 	};
 
-} // namespace
+}

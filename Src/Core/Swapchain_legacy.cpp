@@ -1,4 +1,4 @@
-#include "Core/Swapchain.h"
+#include "Core/Swapchain_legacy.h"
 
 #include <array>
 #include <cstdlib>
