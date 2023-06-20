@@ -16,7 +16,7 @@ namespace EngineCore
 			if (s % 2 != 0) { throw std::runtime_error("tried to set invalid multisampling level"); }
 			// enforce a minimum of 2 samples, since most GPUs should support this
 			if (s <= VK_SAMPLE_COUNT_2_BIT) { samples = VK_SAMPLE_COUNT_2_BIT; } 
-			else if (s >= device.getMaxSampleCount()) { samples = device.getMaxSampleCount(); }
+			else if ((VkSampleCountFlagBits)s >= device.getMaxSampleCount()) { samples = device.getMaxSampleCount(); }
 			else
 			{	/* we could use uint32 bits directly, but this ugly mess makes sure we're safe
 				 in the unlikely event that the vulkan spec changes in some weird way */

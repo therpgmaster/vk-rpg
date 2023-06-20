@@ -1,113 +1,94 @@
 #include "Core/Attachment.h"
 #include "Core/GPU/Device.h"
-#include "Core/Swapchain.h"
 
 #include <stdexcept>
 
 namespace EngineCore
 {
+	//AttachmentCreateInfo::AttachmentCreateInfo(AttachmentType type, EngineSwapChain& swapchain, VkSampleCountFlagBits samples, bool usedAsInput)
+	//	: type{ type }, samples{ samples }, extent{ swapchain.getSwapChainExtent() }, imageCount{ swapchain.imageCount() }, isInputAttachment{ usedAsInput } {}
+	//bool AttachmentCreateInfo::isColor() const { return type == AttachmentType::COLOR || type == AttachmentType::RESOLVE || type == AttachmentType::SWAPCHAIN; }
 
-	AttachmentCreateInfo::AttachmentCreateInfo(AttachmentType t, EngineSwapChain& swp, VkSampleCountFlagBits s)
+	VkImageAspectFlags AttachmentProperties::getAspectFlags() const
 	{
-		AttachmentCreateInfo i = {};
-		i.type = t;
-		i.samples = s;
-		i.imageCount = swp.imageCount();
-		i.extent = swp.getSwapChainExtent();
-
-		// defaults for color attachments
-		i.format = swp.getSwapChainImageFormat();
-		i.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; // note: removed VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT
-		i.aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
-
-		if (t == AttachmentType::DEPTH || t == AttachmentType::DEPTH_STENCIL)
+		switch (type)
 		{
-			// defaults for depth attachments
-			i.format = swp.getDepthFormat();
-			i.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-			i.aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
-			if (t == AttachmentType::DEPTH_STENCIL) { i.aspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT; } // set stencil bit as well
+			case AttachmentType::DEPTH_STENCIL: return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+			case AttachmentType::DEPTH:			return VK_IMAGE_ASPECT_DEPTH_BIT;
+			default:							return VK_IMAGE_ASPECT_COLOR_BIT;
 		}
 	}
 
-	Attachment::Attachment(EngineDevice& device, const AttachmentCreateInfo& info)
-		: createInfo{ info }, device{ device }
-	{
-		auto& a = info; // image properties
-
-		images.resize(a.imageCount);
-		imageMemorys.resize(a.imageCount);
-		imageViews.resize(a.imageCount);
-
-		for (int i = 0; i < images.size(); i++) 
-		{
-			// create images
-			VkImageCreateInfo imageInfo{};
-			imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-			imageInfo.imageType = VK_IMAGE_TYPE_2D;
-			imageInfo.extent.width = a.extent.width;
-			imageInfo.extent.height = a.extent.height;
-			imageInfo.extent.depth = 1;
-			imageInfo.mipLevels = 1;
-			imageInfo.arrayLayers = 1;
-			imageInfo.format = a.format;
-			imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-			imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			imageInfo.usage = a.usage;
-			imageInfo.samples = a.samples;
-			imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-			imageInfo.flags = 0;
-
-			device.createImageWithInfo(imageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, images[i], imageMemorys[i]);
-
-			// create image views
-			VkImageViewCreateInfo viewInfo{};
-			viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			viewInfo.image = images[i];
-			viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			viewInfo.format = a.format;
-			viewInfo.subresourceRange.aspectMask = a.aspectFlags;
-			viewInfo.subresourceRange.baseMipLevel = 0;
-			viewInfo.subresourceRange.levelCount = 1;
-			viewInfo.subresourceRange.baseArrayLayer = 0;
-			viewInfo.subresourceRange.layerCount = 1;
+	Attachment::Attachment(EngineDevice& device, const AttachmentProperties& props, bool input, bool sampled)
+		: device{ device }, props{ props }
+	{	
+		const auto& p = getProps();
 		
-			if (vkCreateImageView(device.device(), &viewInfo, nullptr, &imageViews[i]) != VK_SUCCESS)
-			{ throw std::runtime_error("failed to create attachment image view"); }
+		VkImageCreateInfo imageInfo = Image::makeImageCreateInfo(p.extent.width, p.extent.height); // defaults
+		imageInfo.format = p.format;
+		imageInfo.samples = p.samples;
+		imageInfo.usage = Attachment::isColor(p.type) ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		imageInfo.usage |= input ? VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT : 0;
+		imageInfo.usage |= sampled ? VK_IMAGE_USAGE_SAMPLED_BIT : 0;
+		// support lazily allocated memory (device-only, incompatible with sampled usage)
+		imageInfo.usage |= !sampled ? VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT : 0; 
+
+		images.reserve(p.imageCount);
+		for (uint32_t i = 0; i < p.imageCount; i++)
+		{
+			images.push_back(std::make_unique<Image>(device, imageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
+			images.back()->updateView(p.format, p.getAspectFlags()); // create image view
+		}
+		return;
+	}
+
+	Attachment::Attachment(EngineDevice& device, const AttachmentProperties& props, const std::vector<VkImage>& swapchainImages)
+		: device{ device }, props{ props }
+	{
+		const auto& p = getProps();
+		
+		images.reserve(swapchainImages.size());
+		for (const auto& image : swapchainImages)
+		{
+			images.push_back(std::make_unique<Image>(device, image)); // copy image handle
+			images.back()->updateView(p.format, VK_IMAGE_ASPECT_COLOR_BIT); // create image view
 		}
 	}
 
-	Attachment::~Attachment()
+	//VkFormat Attachment::getFormat(const EngineSwapChain& swapchain) const
+	//{
+	//	return info().isColor() ? swapchain.getSwapChainImageFormat() : swapchain.getDepthFormat(); // defaults
+	//}
+
+	std::vector<VkImageView> Attachment::getImageViews() const 
 	{
-		for (int i = 0; i < images.size(); i++)
-		{
-			vkDestroyImageView(device.device(), imageViews[i], nullptr);
-			vkDestroyImage(device.device(), images[i], nullptr);
-			vkFreeMemory(device.device(), imageMemorys[i], nullptr);
-		}
+		std::vector<VkImageView> views;
+		views.reserve(images.size());
+		for (const auto& image : images) { views.push_back(image->getView()); }
+		return views;
 	}
 
 	bool Attachment::isCompatible(const Attachment& b) const 
 	{
-		return (
-				createInfo.samples == b.createInfo.samples &&
-				createInfo.extent.width == b.createInfo.extent.width &&
-				createInfo.extent.height == b.createInfo.extent.height
-			);
+		return (getProps().samples ==		b.getProps().samples &&
+				getProps().extent.width ==	b.getProps().extent.width &&
+				getProps().extent.height == b.getProps().extent.height);
 	}
 
-	AttachmentUse::AttachmentUse(Attachment& attachment, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
-		VkImageLayout initialLayout, VkImageLayout finalLayout)
-		: attachment{ attachment }, description{}
+	AttachmentUse::AttachmentUse(const Attachment& attachment, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
+								VkImageLayout initialLayout, VkImageLayout finalLayout)
 	{
+		imageViews = attachment.getImageViews();
+		type = attachment.getProps().type;
+
+		description.format = attachment.getProps().format;
+		description.samples = attachment.getProps().samples;
+
 		description.loadOp = loadOp;
 		description.storeOp = storeOp;
-		description.format = attachment.info().format;
-		description.samples = attachment.info().samples;
 		// use setStencilOps function if stencil is used, disabled here by default
 		description.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		description.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
 		description.initialLayout = initialLayout;
 		description.finalLayout = finalLayout;
 	};

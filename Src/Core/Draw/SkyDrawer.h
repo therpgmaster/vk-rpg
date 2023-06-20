@@ -1,17 +1,22 @@
 #pragma once
-#include "Core/Primitive.h"
-#include "Core/GPU/MaterialsManager.h"
+#include "Core/vk.h"
+
 #include <memory>
 #include <string>
+#include <vector>
 #include <glm/glm.hpp>
 
 namespace EngineCore
 {
-	class SkyRenderSystem 
+	class EngineDevice;
+	class Primitive;
+	class MaterialsManager;
+
+	class SkyDrawer 
 	{
 	public:
-		SkyRenderSystem(MaterialsManager& mgr, std::vector<VkDescriptorSetLayout>& setLayouts,
-						EngineDevice& device);
+		SkyDrawer(MaterialsManager& mgr, std::vector<VkDescriptorSetLayout>& setLayouts,
+						EngineDevice& device, VkSampleCountFlagBits samples, VkRenderPass renderpass);
 
 		void renderSky(VkCommandBuffer commandBuffer, VkDescriptorSet sceneGlobalDescriptorSet, 
 						const glm::vec3& observerPosition);
@@ -20,4 +25,4 @@ namespace EngineCore
 		std::unique_ptr<Primitive> skyMesh;
 	};
 
-} // namespace
+}

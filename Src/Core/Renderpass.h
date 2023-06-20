@@ -1,32 +1,43 @@
 #pragma once
+#include "Core/vk.h"
 #include "Core/Attachment.h"
 
+#include <vector>
 #include <memory>
 
 namespace EngineCore 
 {
+	class Renderer;
+	class EngineDevice;
+
 	// acquires shared ownership of the Attachment objects
 	class Renderpass 
 	{
 	public:
-		Renderpass(class EngineDevice& device, const std::vector<AttachmentUse>& attachmentUses);
+		Renderpass(EngineDevice& device, const std::vector<AttachmentUse>& attachmentUses, 
+					VkExtent2D framebufferExtent, uint32_t framebufferCount);
 		~Renderpass();
+		Renderpass(Renderpass&&) = default;
 
-		// uses the renderer's current command buffer to begin the renderpass
-		void begin(const class Renderer& renderer);
+		// uses the supplied command buffer to begin the renderpass
 		void begin(VkCommandBuffer cmdBuffer, uint32_t framebufferIndex);
-		void end();
+
+		VkRenderPass getRenderpass() const { return renderpass; }
 
 	private:
 		VkRenderPass renderpass;
-		std::vector<VkFramebuffer> framebuffers; // multiple, to support one per swapchain image
+		std::vector<VkFramebuffer> framebuffers; // one for each swapchain image
 		VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
 		class EngineDevice& device;
 
-		std::vector<std::shared_ptr<Attachment>> attachments;
+		std::vector<AttachmentUse> attachments;
 		std::vector<VkAttachmentDescription> attachmentDescriptions;
+
+		VkExtent2D framebufferExtent;
+		uint32_t framebufferCount;
 		
 		bool areAttachmentsCompatible() const;
+		std::vector<VkAttachmentDescription> getAttachmentDescriptions() const;
 		void createRenderpass();
 		void createAttachmentReferences(std::vector<VkAttachmentReference>& color, std::vector<VkAttachmentReference>& resolve, 
 										VkAttachmentReference& depthStencil, bool& hasDepthStencil);

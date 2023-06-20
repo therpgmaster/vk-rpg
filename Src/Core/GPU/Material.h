@@ -27,6 +27,7 @@ namespace EngineCore
 		VkPipelineDepthStencilStateCreateInfo depthStencilInfo;
 		std::vector<VkDynamicState> dynamicStateEnables;
 		VkPipelineDynamicStateCreateInfo dynamicStateInfo;
+		VkPipelineVertexInputStateCreateInfo vertexInputInfo;
 		VkPipelineLayout pipelineLayout = nullptr;
 		VkRenderPass renderPass = nullptr;
 		uint32_t subpass = 0;
@@ -47,26 +48,28 @@ namespace EngineCore
 		VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL;
 		VkCullModeFlags cullModeFlags = VK_CULL_MODE_BACK_BIT; // backface culling
 		float lineWidth = 1.f;
+		bool useVertexInput = true; // enable when using vertex buffers
 	};
 
 	// holds all properties needed to create a material object (used to generate a pipeline config)
 	struct MaterialCreateInfo 
 	{
 		MaterialCreateInfo(const ShaderFilePaths& shadersIn,
-					const std::vector<VkDescriptorSetLayout>& setLayoutsIn) 
-					: shaderPaths(shadersIn), descriptorSetLayouts(setLayoutsIn) {};
+						const std::vector<VkDescriptorSetLayout>& setLayoutsIn, VkSampleCountFlagBits samples, VkRenderPass rp)
+			: shaderPaths(shadersIn), descriptorSetLayouts(setLayoutsIn), samples{ samples }, renderpass{ rp } {};
 			 
 		MaterialShadingProperties shadingProperties{};
 		ShaderFilePaths shaderPaths; // SPIR-V shaders
 		std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
+		VkSampleCountFlagBits samples;
+		VkRenderPass renderpass;
 	};
 
 	// a material object is mainly an abstraction around a VkPipeline
 	class Material 
 	{
 	public:
-		Material(const MaterialCreateInfo& matInfo, const EngineRenderSettings& rs,
-				VkRenderPass pass, EngineDevice& deviceIn);
+		Material(const MaterialCreateInfo& matInfo, VkRenderPass pass, EngineDevice& deviceIn);
 		~Material();
 
 		Material(const Material&) = delete;
@@ -87,7 +90,7 @@ namespace EngineCore
 		
 	private:
 		MaterialCreateInfo materialCreateInfo;
-		const EngineRenderSettings& engineRenderSettings;
+
 		VkRenderPass renderPass = VK_NULL_HANDLE;
 
 		EngineDevice& device;
@@ -102,6 +105,7 @@ namespace EngineCore
 		void createShaderModule(const std::string& path, VkShaderModule* shaderModule);
 		void createPipelineLayout();
 		void createPipeline();
+
 	};
 
 	// handle to a managed material

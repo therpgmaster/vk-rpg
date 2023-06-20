@@ -54,6 +54,7 @@ namespace EngineCore
 
 		// apply a new material (reports one user removed from previous material)
 		void setMaterial(const EngineCore::MaterialHandle& newMaterial);
+
 		EngineCore::Material* getMaterial() const { return materialHandle.get(); }
 
 		bool useFakeScale = false; //TODO: TMP - FakeScaleTest082

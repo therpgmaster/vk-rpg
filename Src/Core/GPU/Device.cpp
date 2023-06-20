@@ -72,9 +72,11 @@ namespace EngineCore
 		if (enableValidationLayers && !checkValidationLayerSupport()) 
 		{
 			throw std::runtime_error("validation layers requested, but not available!");
-		} /* make sure the VK_LAYER_PATH and VK_INSTANCE_LAYERS env vars are set (windows) */
+		} 
+		/* make sure the "VK_LAYER_PATH", "VK_INSTANCE_LAYERS", "VULKAN_SDK", and "Path" environment variables are set correctly! 
+		also check the registry values at HKEY_LOCAL_MACHINE\SOFTWARE\Khronos\Vulkan\ExplicitLayers */
 		
-		VkApplicationInfo appInfo {}; 
+		VkApplicationInfo appInfo{};
 		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 		appInfo.pApplicationName = "VulkanApplication";
 		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);

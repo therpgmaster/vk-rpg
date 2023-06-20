@@ -1,15 +1,14 @@
 #pragma once
 
 #include "Core/Types/CommonTypes.h"
+#include <glm/gtc/constants.hpp>
 #include <iostream>
 
 /* a virtual camera, this is you */
 class Camera
 {
 public:
-	Camera()
-	{
-	};
+	Camera() = default;
 	Camera(const float& verticalFOV, const float& near, const float& far)
 	{
 		nearPlane = near;

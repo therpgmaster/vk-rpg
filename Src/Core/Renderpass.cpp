@@ -1,6 +1,8 @@
 #include "Core/Renderpass.h"
+
 #include "Core/GPU/Device.h"
 #include "Core/Renderer.h"
+#include "Core/Attachment.h"
 
 #include <array>
 #include <stdexcept>
@@ -8,17 +10,10 @@
 
 namespace EngineCore 
 {
-	Renderpass::Renderpass(EngineDevice& device, const std::vector<AttachmentUse>& attachmentUses)
-		: device{ device }
+	Renderpass::Renderpass(EngineDevice& device, const std::vector<AttachmentUse>& attachmentUses, 
+							VkExtent2D framebufferExtent, uint32_t framebufferCount)
+		: device{ device }, attachments{ attachmentUses }, framebufferExtent{ framebufferExtent }, framebufferCount{ framebufferCount }
 	{
-		attachments.reserve(attachmentUses.size());
-		attachmentDescriptions.reserve(attachmentUses.size());
-		for (auto& a : attachmentUses)
-		{
-			attachments.push_back(std::shared_ptr<Attachment>(&a.attachment)); // acquire ownership of attachment
-			attachmentDescriptions.push_back(a.description); // add VkAttachmentDescription
-		}
-
 		assert(areAttachmentsCompatible() && "failed to create renderpass, incompatible attachment");
 		createRenderpass();
 		createFramebuffers();
@@ -27,11 +22,12 @@ namespace EngineCore
 	Renderpass::~Renderpass() 
 	{
 		for (auto f : framebuffers) { vkDestroyFramebuffer(device.device(), f, nullptr); }
+		vkDestroyRenderPass(device.device(), renderpass, nullptr);
 	}
 
 	bool Renderpass::areAttachmentsCompatible() const
 	{
-		for (const auto& a : attachments) { if (!attachments[0]->isCompatible(*a.get())) { return false; } }
+		//for (const auto& a : attachments) { if (!attachments[0]->isCompatible(*a.get())) { return false; } }
 		return true;
 	}
 
@@ -45,16 +41,16 @@ namespace EngineCore
 
 		const auto numColor = colorRefs.size();
 		const auto numResolve = resolveRefs.size();
-		if (numResolve > 0 && numResolve != numColor); { throw std::runtime_error("resolve and color attachment counts mismatch"); }
-		if (numColor == 0 && !hasDepthStencil); { throw std::runtime_error("no color or depth-stencil attachments specified"); }
+		if (numResolve > 0 && numResolve != numColor) { throw std::runtime_error("resolve and color attachment counts mismatch"); }
+		if (numColor == 0 && !hasDepthStencil) { throw std::runtime_error("no color or depth-stencil attachments specified"); }
 
 		// create subpass
 		VkSubpassDescription subpass = {};
 		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpass.colorAttachmentCount = numColor;
-		subpass.pColorAttachments = (numColor > 0) ? colorRefs.data() : NULL;
-		subpass.pResolveAttachments = (numResolve > 0) ? resolveRefs.data() : NULL;
-		subpass.pDepthStencilAttachment = (hasDepthStencil) ? &depthStencilRef : NULL;
+		subpass.colorAttachmentCount = (uint32_t)numColor;
+		subpass.pColorAttachments = numColor ? colorRefs.data() : NULL;
+		subpass.pResolveAttachments = numResolve ? resolveRefs.data() : NULL;
+		subpass.pDepthStencilAttachment = hasDepthStencil ? &depthStencilRef : NULL;
 
 		VkSubpassDependency dependency = {};
 		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -65,10 +61,11 @@ namespace EngineCore
 		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
 		// create renderpass
+		auto descriptions = getAttachmentDescriptions();
 		VkRenderPassCreateInfo renderPassInfo = {};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.attachmentCount = static_cast<uint32_t>(attachmentDescriptions.size());
-		renderPassInfo.pAttachments = attachmentDescriptions.data();
+		renderPassInfo.attachmentCount = static_cast<uint32_t>(descriptions.size());
+		renderPassInfo.pAttachments = descriptions.data();
 		renderPassInfo.subpassCount = 1;
 		renderPassInfo.pSubpasses = &subpass;
 		renderPassInfo.dependencyCount = 1;
@@ -78,29 +75,33 @@ namespace EngineCore
 		{ throw std::runtime_error("failed to create renderpass"); }
 	}
 
+	std::vector<VkAttachmentDescription> Renderpass::getAttachmentDescriptions() const 
+	{
+		std::vector<VkAttachmentDescription> d;
+		d.reserve(attachments.size());
+		for (const AttachmentUse& a : attachments) { d.push_back(a.description); }
+		return d;
+	}
+
 	void Renderpass::createAttachmentReferences(std::vector<VkAttachmentReference>& color, std::vector<VkAttachmentReference>& resolve,
 												VkAttachmentReference& depthStencil, bool& hasDepthStencil)
 	{
 		hasDepthStencil = false;
-		uint32_t i = 0; // index for VkRenderPassCreateInfo pAttachments array (all)
-		for (auto& attachment : attachments)
+		uint32_t i = 0; // index for VkRenderPassCreateInfo pAttachments array
+		for (const AttachmentUse& a : attachments)
 		{
 			VkAttachmentReference ref{};
 			ref.attachment = i++;
-
 			ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-			switch (attachment->info().type)
+			switch (a.type)
 			{
 			case AttachmentType::COLOR:
 				color.push_back(ref);
 				break;
-
 			case AttachmentType::RESOLVE:
 				resolve.push_back(ref);
 				break;
-
-			case AttachmentType::DEPTH_STENCIL:
+			case AttachmentType::DEPTH: case AttachmentType::DEPTH_STENCIL:
 				ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 				assert(!hasDepthStencil && "cannot add more than one depth stencil attachment");
 				hasDepthStencil = true;
@@ -112,23 +113,21 @@ namespace EngineCore
 
 	void Renderpass::createFramebuffers()
 	{
-		const auto count = attachments[0]->info().imageCount;
-		const auto extent = attachments[0]->info().extent;
-
-		framebuffers.resize(count);
-		for (size_t i = 0; i < count; i++)
+		framebuffers.resize(framebufferCount);
+		for (size_t i = 0; i < framebufferCount; i++)
 		{
-			// for each attachment, get the corresponding image view
-			std::vector<VkImageView> attachmentViews;
-			for (auto& a : attachments) { attachmentViews.push_back(a->getImageViews()[i]); }
+			// for each attachment, get the corresponding view
+			std::vector<VkImageView> views;
+			views.reserve(attachments.size());
+			for (auto& a : attachments) { views.push_back(a.imageViews[i]); }
 
 			VkFramebufferCreateInfo framebufferInfo = {};
 			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 			framebufferInfo.renderPass = renderpass;
-			framebufferInfo.attachmentCount = attachmentViews.size();
-			framebufferInfo.pAttachments = attachmentViews.data();
-			framebufferInfo.width = extent.width;
-			framebufferInfo.height = extent.height;
+			framebufferInfo.attachmentCount = static_cast<uint32_t>(views.size());
+			framebufferInfo.pAttachments = views.data();
+			framebufferInfo.width = framebufferExtent.width;
+			framebufferInfo.height = framebufferExtent.height;
 			framebufferInfo.layers = 1;
 
 			if (vkCreateFramebuffer(device.device(), &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS)
@@ -136,50 +135,45 @@ namespace EngineCore
 		}
 	}
 
-	void Renderpass::begin(const Renderer& renderer)
-	{
-		begin(renderer.getCurrentCommandBuffer(), renderer.getFrameIndex());
-	}
-
 	void Renderpass::begin(VkCommandBuffer cmdBuffer, uint32_t framebufferIndex)
 	{
-		commandBuffer = cmdBuffer;
-		assert(commandBuffer != VK_NULL_HANDLE && "begin renderpass null command buffer");
-
-		const auto extent = attachments[0]->info().extent; // framebuffer extent
-
+		assert(cmdBuffer != VK_NULL_HANDLE && "begin renderpass failed, no command buffer");
 		VkRenderPassBeginInfo renderPassInfo{};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderPassInfo.renderPass = renderpass;
 		renderPassInfo.framebuffer = framebuffers[framebufferIndex];
 
 		renderPassInfo.renderArea.offset = { 0, 0 };
-		renderPassInfo.renderArea.extent = extent;
+		renderPassInfo.renderArea.extent = framebufferExtent;
 
-		std::array<VkClearValue, 2> clearValues{};
-		clearValues[0].color = { 0.01f, 0.01f, 0.01f, 1.0f };
-		clearValues[1].depthStencil = { 1.f, 0 };
+		//std::array<VkClearValue, 2> clearValues{};
+		VkClearValue clearValueColor = { 0.1f, 0.12f, 0.2f, 1.0f };
+		VkClearValue clearValueDepth = { 1.f, 0 };
+
+		std::vector<VkClearValue> clearValues;
+		clearValues.reserve(attachments.size());
+		for (auto& a : attachments) 
+		{
+			if (Attachment::isColor(a.type)) { clearValues.push_back(clearValueColor); }
+			else { clearValues.push_back(clearValueDepth); }
+		}
+
+
 		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
 		renderPassInfo.pClearValues = clearValues.data();
 
-		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBeginRenderPass(cmdBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 		VkViewport viewport{};
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
-		viewport.width = static_cast<float>(extent.width);
-		viewport.height = static_cast<float>(extent.height);
+		viewport.width = static_cast<float>(framebufferExtent.width);
+		viewport.height = static_cast<float>(framebufferExtent.height);
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
-		VkRect2D scissor{ {0, 0}, extent };
-		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-	}
-
-	void Renderpass::end()
-	{
-		assert(commandBuffer != VK_NULL_HANDLE && "end renderpass null command buffer");
-		vkCmdEndRenderPass(commandBuffer);
+		VkRect2D scissor{ {0, 0}, framebufferExtent };
+		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 	}
 
 }

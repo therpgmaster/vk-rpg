@@ -1,9 +1,12 @@
 #pragma once
-
 #include "Core/Window.h"
 #include "Core/GPU/Device.h"
 #include "Core/Renderer.h"
 #include "Core/GPU/MaterialsManager.h"
+#include "Core/Camera.h"
+#include "Core/Draw/MeshDrawer.h"
+#include "Core/Draw/SkyDrawer.h"
+#include "Core/Draw/FxDrawer.h"
 
 #include <memory>
 #include <vector>
@@ -54,19 +57,20 @@ namespace EngineCore
 	};
 
 	class Primitive;
+	class Image;
 
 	// base class for an object representing the entire engine
 	class EngineApplication
 	{
 	public:
 		// hardcoded window size in pixels
-		static constexpr int WIDTH = 1100;
-		static constexpr int HEIGHT = 720;
+		static constexpr int WIDTH = 1920; //1100;
+		static constexpr int HEIGHT = 1080; //720;
 
 		EngineRenderSettings renderSettings{};
 		
 		EngineApplication();
-		~EngineApplication();
+		~EngineApplication() = default;
 
 		EngineApplication(const EngineApplication&) = delete;
 		EngineApplication& operator=(const EngineApplication&) = delete;
@@ -86,6 +90,17 @@ namespace EngineCore
 	private:
 		void loadActors();
 		void setupDefaultInputs();
+		void setupDescriptors();
+		void applyDemoMaterials(const std::vector<VkDescriptorSetLayout>& setLayouts);
+		void render();
+		void moveCamera();
+
+		Camera camera;
+		std::unique_ptr<Image> spaceTexture;
+		std::unique_ptr<Image> marsTexture;
+		std::unique_ptr<MeshDrawer> meshDrawer;
+		std::unique_ptr<SkyDrawer> skyDrawer;
+		std::unique_ptr<FxDrawer> fxDrawer; // TODO: consider recreating this object with the swapchain, since swapchain image count is not guaranteed to stay the same
 
 		// engine application window (creates a window using GLFW) 
 		EngineWindow window{ WIDTH, HEIGHT, "Vulkan Window" };
@@ -98,10 +113,10 @@ namespace EngineCore
 
 		EngineClock engineClock{};
 
-		DescriptorSet dset{ device };
+		DescriptorSet dset{ device }; // default global descriptor set
 
 		std::unique_ptr<DescriptorPool> globalDescriptorPool{};
-		std::vector<Primitive*> loadedMeshes;
+		std::vector<std::unique_ptr<Primitive>> loadedMeshes;
 
 	};
 

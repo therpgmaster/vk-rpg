@@ -128,6 +128,13 @@ namespace EngineCore
 	*	used as a precursor to generate a UBO_Layout */
 	class UBO_Struct
 	{
+	public:
+		// adds a single data type to this structure (or an array containing that type)
+		void add(uelem t, const size_t& arrayLength = 1);
+		// adds a nested structure to this structure (or an array containing that structure)
+		void add(const std::vector<uelem>& t, const size_t& arrayLength = 1);
+
+	private:
 		friend class UBO_Layout;
 		// innermost ("leaf") layer in the structure tree - a nested structure or single data element
 		struct UBO_StructLeaf
@@ -139,12 +146,6 @@ namespace EngineCore
 		};
 
 		std::vector<UBO_StructLeaf> fields; // elements and nested structures added to this structure
-		
-	public:
-		// adds a single data type to this structure (or an array containing that type)
-		void add(uelem t, const size_t& arrayLength = 1);
-		// adds a nested structure to this structure (or an array containing that structure)
-		void add(const std::vector<uelem>& t, const size_t& arrayLength = 1);
 	};
 
 	// the actual memory layout information for a uniform buffer structure
@@ -186,9 +187,19 @@ namespace EngineCore
 		UBO_Layout structLayout;
 		std::vector<std::unique_ptr<GBuffer>> buffers;
 
-		void createBuffers(EngineDevice& device, const uint32_t& numBuffers);
+		void createBuffers(EngineDevice& device, uint32_t numBuffers);
 		void writeMember(const UBO_Layout::ElementAccessor& loc, void* data, const size_t& dataSize,
 						uint32_t bufferIndex, bool flush);
+	};
+
+	struct ImageArrayDescriptor
+	{
+		// add an image to the array, takes multiple views to switch between for each frame in flight
+		void addImage(const std::vector<VkImageView>& views);
+		size_t getArrayLength() const { return arrays[0].size(); }
+		VkDescriptorImageInfo* getArray(uint32_t frameIndex) { return arrays[frameIndex].data(); }
+		// copies of the same image array, one for each frame in flight
+		std::vector<std::vector<VkDescriptorImageInfo>> arrays;
 	};
 
 	/*	descriptor set abstraction, this enables descriptor sets to be managed as self-contained objects, 
@@ -197,13 +208,14 @@ namespace EngineCore
 	{
 	public:
 		DescriptorSet(EngineDevice& device);
+		DescriptorSet(EngineDevice& device, uint32_t numBuffers);
 		DescriptorSet(const DescriptorSet&) = delete;
 		DescriptorSet& operator=(const DescriptorSet&) = delete;
 
 		// add a descriptor to the set, actual binding indices depend on the order in the finalize function
 		void addUBO(const UBO_Struct& structureLayout, EngineDevice& device);
 		void addCombinedImageSampler(const VkImageView& view, const VkSampler& sampler);
-		void addImageArray(const std::vector<VkImageView>& views);
+		void addImageArray(const ImageArrayDescriptor& imageArray);
 		void addSampler(const VkSampler& sampler);
 
 		void finalize(); // allocates descriptors, builds the set layout and VkDescriptorSets  
@@ -222,15 +234,16 @@ namespace EngineCore
 		std::unique_ptr<DescriptorSetLayout> layout; // layout of this set
 		std::vector<VkDescriptorSet> sets; // per frame (identical layout)
 		std::vector<std::unique_ptr<UBO>> ubos; // managed ubo (each has internal per-frame buffers)
-		// descriptor info containers necessary to preserve pointers for vulkan
-		std::vector<std::unique_ptr<VkDescriptorBufferInfo>> bufferInfos;
+		std::vector<std::unique_ptr<VkDescriptorBufferInfo>> bufferInfos; // descriptor infos necessary to preserve pointers for vulkan
 		std::vector<std::unique_ptr<VkDescriptorImageInfo>> samplerImageInfos;
-		std::vector<std::vector<VkDescriptorImageInfo>> imageArraysInfos; // must be contiguous
-		std::vector<uint32_t> imageArraysSizes;
+		std::vector<ImageArrayDescriptor> imageArraysInfos;
+		uint32_t numImagesTotal = 0;
 		std::vector<std::unique_ptr<VkDescriptorImageInfo>> samplerInfos;
 		
 		EngineDevice& device;
-		uint32_t framesInFlight; // num copies to create of each buffer
+		/* num copies to create of each buffer, usually MAX_FRAMES_IN_FLIGHT, 
+		but may be set to a different number (e.g. swapchain image count, when using an attachment image) */
+		uint32_t framesInFlight;
 	};
 
 }

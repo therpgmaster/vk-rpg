@@ -51,7 +51,7 @@ namespace EngineCore
 	uint32_t InputSystem::addBinding(KeyBinding binding, const std::string& newAxisName)
 	{
 		std::string axisName = newAxisName;
-		uint32_t axisIndex = axisValues.size();
+		uint32_t axisIndex = static_cast<uint32_t>(axisValues.size());
 		if (newAxisName == "NONE") { axisName = "Axis_" + axisIndex; }
 		axisValues.push_back(InputAxis(axisName)); // add input axis
 		binding.axisIndex = axisIndex;

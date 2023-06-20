@@ -1,5 +1,6 @@
-#include "mesh_rendersys.h"
+#include "MeshDrawer.h"
 
+#include "Core/GPU/Device.h"
 #include "Core/Camera.h"
 
 #include <stdexcept>
@@ -15,14 +16,13 @@
 
 namespace EngineCore
 {
-	void MeshRenderSystem::renderMeshes(VkCommandBuffer commandBuffer, std::vector<Primitive*>& meshes,
+	void MeshDrawer::renderMeshes(VkCommandBuffer commandBuffer, std::vector<std::unique_ptr<Primitive>>& meshes,
 			const float& deltaTimeSeconds, float time, VkDescriptorSet sceneGlobalDescriptorSet, Transform& fakeScaleOffsets) //FakeScaleTest082
-			
 	{
-		for (auto* pMesh : meshes)
+		for (auto& pMesh : meshes)
 		{
-			if (!pMesh || !pMesh->getMaterial()) { continue; }
-			auto& mesh = *pMesh;
+			if (!pMesh.get() || !pMesh->getMaterial()) { continue; }
+			auto& mesh = *pMesh.get();
 			auto& material = *mesh.getMaterial();
 
 			material.bindToCommandBuffer(commandBuffer); // bind material-specific shading pipeline
@@ -91,7 +91,7 @@ namespace EngineCore
 		}
 	}
 
-	glm::mat4 MeshRenderSystem::lerpMat4(float t, glm::mat4 matA, glm::mat4 matB) 
+	glm::mat4 MeshDrawer::lerpMat4(float t, glm::mat4 matA, glm::mat4 matB) 
 	{
 		glm::mat4 matOut{};
 

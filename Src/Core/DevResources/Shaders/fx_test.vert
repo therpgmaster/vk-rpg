@@ -17,21 +17,18 @@ layout(std430, set = 0, binding = 0) uniform UBO1
 	mat4 projectionViewMatrix;
 } ubo1;
 
-layout(set = 0, binding = 1) uniform texture2D textures[2];
-layout(set = 0, binding = 2) uniform sampler _sampler;
-
-layout(push_constant) uniform Push	
+layout(push_constant) uniform Push
 {
 	mat4 transform;
 	mat4 normalMatrix;
 } push;
 
 
-void main() 
+void main()
 {
   gl_Position = ubo1.projectionViewMatrix * push.transform * position;
   fragNormalWS = normalize(mat3(push.normalMatrix) * normal);
   fragPositionWS = vec4(push.transform * position).xyz;
+  fragColor = vec3(0.8, 0.6, 0.6); // use fixed value instead of vertex color
   fragUV = uv;
-  fragColor = vec3(0.0, 0.0, 0.0); // hardcoded
 }

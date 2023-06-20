@@ -23,7 +23,7 @@ namespace EngineCore
 		VkDescriptorSetLayoutBinding layoutBinding{};
 		layoutBinding.binding = binding;
 		layoutBinding.descriptorType = descriptorType;
-		layoutBinding.descriptorCount = count;
+		layoutBinding.descriptorCount = count; // array length
 		layoutBinding.stageFlags = stageFlags;
 		bindings[binding] = layoutBinding;
 		return *this;
@@ -151,15 +151,13 @@ namespace EngineCore
 	DescriptorWriter::DescriptorWriter(DescriptorSetLayout& setLayout, DescriptorPool& pool)
 		: setLayout{ setLayout }, pool{ pool } {}
 
-	DescriptorWriter& DescriptorWriter::writeBuffer(
-		uint32_t binding, VkDescriptorBufferInfo* bufferInfo) {
+	DescriptorWriter& DescriptorWriter::writeBuffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo) 
+	{
 		assert(setLayout.bindings.count(binding) == 1 && "Layout does not contain specified binding");
 
 		auto& bindingDescription = setLayout.bindings[binding];
 
-		assert(
-			bindingDescription.descriptorCount == 1 &&
-			"Binding single descriptor info, but binding expects multiple");
+		assert(bindingDescription.descriptorCount == 1 && "Binding single descriptor info, but binding expects multiple");
 
 		VkWriteDescriptorSet write{};
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -178,8 +176,7 @@ namespace EngineCore
 
 		auto& bindingDescription = setLayout.bindings[binding];
 
-		assert(arrSize == bindingDescription.descriptorCount &&
-			"failed to write array descriptor binding, count must match set layout");
+		assert(arrSize == bindingDescription.descriptorCount && "failed to write array descriptor binding, count must match set layout");
 
 		VkWriteDescriptorSet write{};
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -339,7 +336,7 @@ namespace EngineCore
 		if (flush) { getBuffer(bufferIndex)->flush(); }
 	}
 
-	void UBO::createBuffers(EngineDevice& device, const uint32_t& numBuffers)
+	void UBO::createBuffers(EngineDevice& device, uint32_t numBuffers)
 	{
 		auto minOffsetAlignment = device.properties.limits.minUniformBufferOffsetAlignment;
 		for (uint32_t i = 0; i < numBuffers; i++) 
@@ -353,9 +350,28 @@ namespace EngineCore
 
 	// *************** Descriptor set wrapper *********************
 
+	void ImageArrayDescriptor::addImage(const std::vector<VkImageView>& views)
+	{
+		const size_t num = views.size(); // num arrays, usually framesInFlight
+		if (arrays.empty()) { arrays.resize(num); }
+		assert(arrays.size() == num && "failed to add image to array descriptor, mismatched image counts");
+
+		for (size_t i = 0; i < num; i++)
+		{
+			// add the i:th image info to the i:th "copy" of the array
+			VkDescriptorImageInfo info{};
+			info.imageView = views[i];
+			info.sampler = nullptr;
+			info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // correct layout assumed
+			arrays[i].push_back(info);
+		}
+	}
+
 	DescriptorSet::DescriptorSet(EngineDevice& device)
-		: device{ device }, framesInFlight{ EngineSwapChain::MAX_FRAMES_IN_FLIGHT }
-		{ assert(framesInFlight > 0); };
+		: device{ device }, framesInFlight{ EngineSwapChain::MAX_FRAMES_IN_FLIGHT } {};
+
+	DescriptorSet::DescriptorSet(EngineDevice& device, uint32_t numBuffers)
+		: device{ device }, framesInFlight{ numBuffers } {};
 
 	void DescriptorSet::addUBO(const UBO_Struct& structureLayout, EngineDevice& device)
 	{
@@ -371,21 +387,11 @@ namespace EngineCore
 		samplerImageInfos.push_back(std::make_unique<VkDescriptorImageInfo>(info));
 	}
 
-	void DescriptorSet::addImageArray(const std::vector<VkImageView>& views)
+	void DescriptorSet::addImageArray(const ImageArrayDescriptor& imageArray)
 	{
-		assert(!views.empty() && "tried to add empty image array descriptor");
-		// add array (single binding, but each image in array must have its own info)
-		std::vector<VkDescriptorImageInfo> infos{};
-		for (const auto& imageView : views)
-		{
-			VkDescriptorImageInfo imgInfo{};
-			imgInfo.sampler = nullptr;
-			imgInfo.imageView = imageView;
-			imgInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // correct layout assumed
-			infos.push_back(imgInfo);
-		}
-		imageArraysInfos.push_back(infos); // add array image infos
-		imageArraysSizes.push_back(views.size()); // record array length
+		assert(!imageArray.arrays.empty() && "tried to add empty image array descriptor");
+		imageArraysInfos.push_back(imageArray);
+		numImagesTotal += imageArray.getArrayLength() * imageArray.arrays.size();
 	}
 
 	void DescriptorSet::addSampler(const VkSampler& sampler)
@@ -399,17 +405,18 @@ namespace EngineCore
 
 	void DescriptorSet::finalize()
 	{
+		assert(framesInFlight > 0 && "descriptor set must have framesInFlight set to a valid number");
 		sets.resize(framesInFlight);
 
 		uint32_t numUBOs = ubos.size();
 		uint32_t numSamplerImages = samplerImageInfos.size();
-		uint32_t numImageArrays = imageArraysSizes.size();
+		uint32_t numImageArrays = imageArraysInfos.size();
 		uint32_t numSamplers = samplerInfos.size();
 		
 		DescriptorPool::Builder poolBuilder(device);
 		if (numUBOs > 0) { poolBuilder.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, framesInFlight * numUBOs); }
 		if (numSamplerImages > 0) { poolBuilder.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numSamplerImages); }
-		if (numImageArrays > 0) { for (auto& s : imageArraysSizes) { poolBuilder.addPoolSize(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, s); } }
+		if (numImageArrays > 0) { poolBuilder.addPoolSize(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, numImagesTotal); }
 		if (numSamplers > 0) { poolBuilder.addPoolSize(VK_DESCRIPTOR_TYPE_SAMPLER, numSamplers); }
 		
 		pool = poolBuilder.build();
@@ -427,7 +434,7 @@ namespace EngineCore
 		for (uint32_t i = 0; i < numImageArrays; i++) /* image arrays after combined image samplers */
 		{
 			layoutBuilder.addBinding(i + numUBOs + numSamplerImages,
-			VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_ALL_GRAPHICS, imageArraysSizes[i]);
+			VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_ALL_GRAPHICS, imageArraysInfos[i].getArrayLength());
 		}
 
 		// add sampler-only bindings
@@ -459,10 +466,11 @@ namespace EngineCore
 				writer.writeImage(i + numUBOs, samplerImageInfos[i].get());
 			}
 
-			// add image arrays, one binding per array - currently re-using same images for all frames
+			// add image arrays
 			for (uint32_t a = 0; a < numImageArrays; a++)
 			{
-				writer.writeImage(a + numUBOs + numSamplerImages, imageArraysInfos[a].data(), imageArraysSizes[a]);
+				auto& infoArray = imageArraysInfos[a].arrays[f];
+				writer.writeImage(a + numUBOs + numSamplerImages, infoArray.data(), infoArray.size());
 			}
 
 			// add samplers

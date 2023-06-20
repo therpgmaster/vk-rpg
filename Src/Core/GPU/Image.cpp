@@ -1,4 +1,6 @@
 #include "Core/GPU/Image.h"
+#include "Core/GPU/Device.h"
+#include "Core/GPU/Buffer.h"
 #include <cassert>
 #include <stdexcept>
 
@@ -6,32 +8,53 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "Core/ThirdParty/stb_image.h"
 
-namespace EngineCore 
+namespace EngineCore
 {
+	Image::Image(EngineDevice& device, VkImage image)
+		: device{ device }, image{ image } {}
 
-	Image::Image(EngineDevice& device, const std::string& path) 
+	Image::Image(EngineDevice& device, const std::string& path)
 		: device{ device }
 	{
 		loadFromDisk(path);
-		imageView = createImageView(device, image, VK_FORMAT_R8G8B8A8_SRGB);
+		updateView(VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_VIEW_TYPE_2D);
 		createSampler(sampler, device, 1.f); // TODO: need to check if device supports the anisotropy level!
 	}
 
-	Image::Image(EngineDevice& device, VkImageCreateInfo info, 
-				VkMemoryPropertyFlags memProps = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-				: device{ device }
+	Image::Image(EngineDevice& device, VkImageCreateInfo info, VkMemoryPropertyFlags memProps)
+		: device{ device }
 	{
-		initImage(memProps, info);
+		create(memProps, info);
 	}
 
 	Image::~Image() 
 	{
-		vkDestroyImageView(device.device(), imageView, nullptr);
-		vkDestroyImage(device.device(), image, nullptr);
-		vkFreeMemory(device.device(), imageMemory, nullptr);
+		destroyView();
+		if (imageMemory != VK_NULL_HANDLE) 
+		{ 
+			destroyImage();
+			vkFreeMemory(device.device(), imageMemory, nullptr); 
+		}
+		if (sampler != VK_NULL_HANDLE) 
+		{ 
+			vkDestroySampler(device.device(), sampler, nullptr); 
+		}
 	}
 
-	// loads the image from a file
+	void Image::destroyView() 
+	{
+		if (imageView == VK_NULL_HANDLE) { return; }
+		vkDestroyImageView(device.device(), imageView, nullptr);
+		imageView = VK_NULL_HANDLE;
+	}
+
+	void Image::destroyImage()
+	{
+		if (image == VK_NULL_HANDLE) { return; }
+		vkDestroyImage(device.device(), image, nullptr);
+		image = VK_NULL_HANDLE;
+	}
+
 	void Image::loadFromDisk(const std::string& path)
 	{
 		// import (see Vulkan Tutorial - Texture mapping)
@@ -40,24 +63,23 @@ namespace EngineCore
 		VkDeviceSize imageSize = width * height * (uint32_t)4;
 		if (!pixels) { throw std::runtime_error("failed to load image"); }
 
-		// temporary buffer to transfer from CPU (host) to GPU (device)
+		// temporary image buffer
 		GBuffer stagingBuffer
 		{
 			device, imageSize, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
 		};
 
-		// map buffer to host so we can write to it from the host
+		// map buffer to host and copy to it
 		stagingBuffer.map(imageSize);
 		memcpy(stagingBuffer.getMappedMemory(), pixels, static_cast<size_t>(imageSize)); 
 		stagingBuffer.unmap();
 
 		stbi_image_free(pixels); // free importer memory
 
-		/*	allocate and prep the image for write - device local memory is the fastest
-			but does not allow direct modification from the host */
-		VkImageCreateInfo info = makeImageCreateInfo(width, height); // using defaults set in this function
-		initImage(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, info);
+		/*	allocate and prep the image for write, device local memory is fast but does not allow host access */
+		VkImageCreateInfo info = makeImageCreateInfo(width, height); // using defaults
+		create(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, info);
 
 		// transfer data from buffer to image
 		copyBufferToImage(stagingBuffer, static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1);
@@ -82,9 +104,9 @@ namespace EngineCore
 		return ci;
 	}
 
-	// performs the memory allocation for the underlying VkImage
-	void Image::initImage(VkMemoryPropertyFlags memProps, VkImageCreateInfo info)
+	void Image::create(VkMemoryPropertyFlags memProps, VkImageCreateInfo info)
 	{
+		// performs the memory allocation and creation of the underlying VkImage
 		if (vkCreateImage(device.device(), &info, nullptr, &image) != VK_SUCCESS)
 		{ throw std::runtime_error("failed to create image"); }
 
@@ -103,8 +125,7 @@ namespace EngineCore
 		{ throw std::runtime_error("failed to bind memory for image"); }
 	}
 
-	void Image::transitionImageLayout(VkFormat format, 
-								VkImageLayout oldLayout, VkImageLayout newLayout)
+	void Image::transitionImageLayout(VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
 	{
 		VkCommandBuffer commandBuffer = device.beginSingleTimeCommands();
 
@@ -148,9 +169,7 @@ namespace EngineCore
 		device.endSingleTimeCommands(commandBuffer);
 	}
 
-	void Image::copyBufferToImage(const GBuffer& buffer, uint32_t width, uint32_t height,
-									uint32_t layerCount)
-								
+	void Image::copyBufferToImage(const GBuffer& buffer, uint32_t width, uint32_t height, uint32_t layerCount)
 	{
 		// vkCmdCopyBufferToImage requires the right image layout, that is handled here
 		transitionImageLayout(VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -175,9 +194,9 @@ namespace EngineCore
 		transitionImageLayout(VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	}
 
-	VkImageView Image::createImageView(EngineDevice& device, VkImage image, VkFormat format, 
-										VkImageAspectFlags aspect, VkImageViewType viewType)
+	void Image::createView(VkImageView& view, VkFormat format, VkImageAspectFlags aspect, VkImageViewType viewType)
 	{
+		assert(image != VK_NULL_HANDLE && "failed to create image view, image was uninitialized");
 		VkImageViewCreateInfo info{};
 		info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		info.image = image;
@@ -188,12 +207,14 @@ namespace EngineCore
 		info.subresourceRange.levelCount = 1;
 		info.subresourceRange.baseArrayLayer = 0;
 		info.subresourceRange.layerCount = 1;
-
-		VkImageView view;
 		if (vkCreateImageView(device.device(), &info, nullptr, &view) != VK_SUCCESS) 
 		{ throw std::runtime_error("failed to create image view"); }
-
-		return view;
+	}
+	
+	void Image::updateView(VkFormat format, VkImageAspectFlags aspect, VkImageViewType viewType)
+	{
+		destroyView();
+		createView(imageView, format, aspect, viewType);
 	}
 
 	void Image::createSampler(VkSampler& samplerHandleOut, EngineDevice& device, const float& anisotropy)
@@ -222,7 +243,6 @@ namespace EngineCore
 
 		if (vkCreateSampler(device.device(), &info, nullptr, &samplerHandleOut) != VK_SUCCESS)
 		{ throw std::runtime_error("failed to create texture sampler"); }
-
 	}
 
-} // namespace
+}

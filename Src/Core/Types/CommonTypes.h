@@ -207,7 +207,7 @@ public:
 static std::string makePath(const char* pathIn)
 {
 	// TODO: hardcoded path, subject to change  
-	std::string dir = "G:/VulkanDev/VulkanEngine/Core/DevResources/"; // relative: "Resources/" absolute: "G:/VulkanDev/VulkanEngine/Core/DevResources/"
+	std::string dir = "D:/VulkanDev/vk-rpg/Src/Core/DevResources/"; // relative: "Resources/" absolute: "D:/VulkanDev/vk-rpg/Src/Core/DevResources/"
 	std::string path = pathIn;
 	dir += path;
 	return dir;

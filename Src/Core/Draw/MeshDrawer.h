@@ -1,11 +1,8 @@
 #pragma once
-
-#include "Core/GPU/Device.h"
 #include "Core/GPU/Material.h"
 
-// glm
-#include <glm/gtc/matrix_transform.hpp>
-// std
+#include <glm/gtc/matrix_transform.hpp> // glm
+
 #include <memory>
 #include <vector>
 #include <cmath> // only used in perspective calculation
@@ -15,16 +12,18 @@ class Camera;
 
 namespace EngineCore
 {
-	class MeshRenderSystem
+	class EngineDevice;
+
+	class MeshDrawer
 	{
 	public:
 
-		MeshRenderSystem(EngineDevice& deviceIn, VkRenderPass renderPass) : device{ deviceIn } {};
+		MeshDrawer(EngineDevice& deviceIn) : device{ deviceIn } {};
 
-		MeshRenderSystem(const MeshRenderSystem&) = delete;
-		MeshRenderSystem& operator=(const MeshRenderSystem&) = delete;
+		MeshDrawer(const MeshDrawer&) = delete;
+		MeshDrawer& operator=(const MeshDrawer&) = delete;
 
-		void renderMeshes(VkCommandBuffer commandBuffer, std::vector<Primitive*>& meshes,
+		void renderMeshes(VkCommandBuffer commandBuffer, std::vector<std::unique_ptr<Primitive>>& meshes,
 						const float& deltaTimeSeconds, float time, VkDescriptorSet sceneGlobalDescriptorSet, Transform& fakeScaleOffsets); //FakeScaleTest082
 
 	private:
@@ -59,9 +58,9 @@ namespace EngineCore
 
 		static float lerp(const double& a, const double& b, const double& t)
 		{
-			return (a * (1.0 - t)) + (b * t);
+			return static_cast<float>((a * (1.0 - t)) + (b * t));
 		}
 
 	};
 
-} // namespace
+}

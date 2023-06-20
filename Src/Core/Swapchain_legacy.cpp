@@ -35,13 +35,16 @@ namespace EngineCore {
 		createSyncObjects();
 	}
 
-	EngineSwapChain::~EngineSwapChain() {
-		for (auto imageView : swapChainImageViews) {
+	EngineSwapChain::~EngineSwapChain() 
+	{
+		for (auto imageView : swapChainImageViews) 
+		{
 			vkDestroyImageView(device.device(), imageView, nullptr);
 		}
 		swapChainImageViews.clear();
 
-		if (swapChain != nullptr) {
+		if (swapChain != nullptr) 
+		{
 			vkDestroySwapchainKHR(device.device(), swapChain, nullptr);
 			swapChain = nullptr;
 		}

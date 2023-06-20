@@ -18,7 +18,7 @@ namespace EngineCore
 			caller is responsible for reporting when they start/stop using the material! */
 		MaterialHandle createMaterial(const MaterialCreateInfo& matInfo);
 
-		void matReportUserAddOrRemove(const MaterialHandle& mh, const int8_t& num);
+		void matReportUserAddOrRemove(const MaterialHandle& mh, const int32_t& num);
 
 	private:
 		struct mgrMatInfo

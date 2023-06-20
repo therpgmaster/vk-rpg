@@ -1,10 +1,13 @@
-#include "Core/sky_rendersys.h"
+#include "Core/Draw/SkyDrawer.h"
+#include "Core/Primitive.h"
+#include "Core/GPU/Device.h"
+#include "Core/GPU/MaterialsManager.h"
 #include "Core/Types/CommonTypes.h"
 
 namespace EngineCore
 {
-	SkyRenderSystem::SkyRenderSystem(MaterialsManager& mgr, std::vector<VkDescriptorSetLayout>& setLayouts,
-									EngineDevice& device)
+	SkyDrawer::SkyDrawer(MaterialsManager& mgr, std::vector<VkDescriptorSetLayout>& setLayouts,
+									EngineDevice& device, VkSampleCountFlagBits samples, VkRenderPass renderpass)
 	{
 		// TODO: hardcoded paths
 		const std::string meshPath = makePath("Meshes/skysphere.obj");
@@ -17,14 +20,14 @@ namespace EngineCore
 		skyMesh->getTransform().scale = 100000.f;
 
 		// create unique material for sky
-		MaterialCreateInfo matInfo(skyShaders, setLayouts);
+		MaterialCreateInfo matInfo(skyShaders, setLayouts, samples, renderpass);
 		// set the sky material to render backfaces, since it will be viewed from inside
 		matInfo.shadingProperties.cullModeFlags = VK_CULL_MODE_NONE;
 		auto m = mgr.createMaterial(matInfo); // create
 		skyMesh.get()->setMaterial(m); // use
 	}
 
-	void SkyRenderSystem::renderSky(VkCommandBuffer commandBuffer, VkDescriptorSet sceneGlobalDescriptorSet, 
+	void SkyDrawer::renderSky(VkCommandBuffer commandBuffer, VkDescriptorSet sceneGlobalDescriptorSet, 
 									const glm::vec3& observerPosition)
 	{
 		// aliases for convenience

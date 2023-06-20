@@ -8,8 +8,7 @@ namespace EngineCore
 	
 	MaterialHandle MaterialsManager::createMaterial(const MaterialCreateInfo& matInfo)
 	{
-		Material* m = new Material(matInfo, engineRenderSettings, 
-								renderer.getSwapchainRenderPass(), device);
+		Material* m = new Material(matInfo, matInfo.renderpass, device);
 		// take ownership of the material object 
 		// try to find an empty handle first, otherwise create a new one
 		for (auto& h : materials) 
@@ -44,7 +43,7 @@ namespace EngineCore
 		for (auto& h : materials) { if (h.users < 1) { freeMaterial(h); } }
 	}
 
-	void MaterialsManager::matReportUserAddOrRemove(const MaterialHandle& mh, const int8_t& num)
+	void MaterialsManager::matReportUserAddOrRemove(const MaterialHandle& mh, const int32_t& num)
 	{
 		const auto* p = mh.get();
 		if (!p) { return; }

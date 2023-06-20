@@ -1,9 +1,5 @@
 #include "Engine.h"
 
-#include "mesh_rendersys.h"
-#include "sky_rendersys.h"
-
-#include "Core/Camera.h"
 #include "Core/GPU/Material.h"
 #include "Core/GPU/Buffer.h"
 #include "Core/GPU/Image.h"
@@ -22,114 +18,36 @@ namespace EngineCore
 {
 	EngineApplication::EngineApplication()
 	{
-		loadActors(); 
+		loadActors();
+		// demo textures
+		marsTexture = std::make_unique<Image>(device, makePath("Textures/mars6k_v2.jpg"));
+		spaceTexture = std::make_unique<Image>(device, makePath("Textures/space.png"));
+		// temporary single-camera setup
+		camera = Camera(45.f, 0.8f, 10.f);
+		camera.transform.translation.x = -8.f;
 	}
-
-	EngineApplication::~EngineApplication() {};
 
 	void EngineApplication::startExecution()
 	{
-		MeshRenderSystem meshRenderSys{ device, renderer.getSwapchainRenderPass() };
-
-		// texture test TODO: this is not an ideal way to store these objects
-		Image& marsTexture = *new Image(device, makePath("Textures/mars6k_v2.jpg"));
-		Image& spaceTexture = *new Image(device, makePath("Textures/space.png"));
-
-		// runtime descriptors test
-		//UBOCreateInfo ubo1{ device };
-		//ubo1.addMember(UBOCreateInfo::mat4); // MVP matrix
-		//ubo1.addMember(UBOCreateInfo::vec3); // camera position
-
-		UBO_Struct ubo1{};
-		ubo1.add(uelem::mat4); // MVP matrix
-		ubo1.add(std::vector{ uelem::scalar, uelem::vec3 }, 2); // test
-		float testScalar = 0.f;
-		dset.addUBO(ubo1, device);
-
-		dset.addImageArray(std::vector<VkImageView>{ marsTexture.imageView, spaceTexture.imageView });
-		dset.addSampler(marsTexture.sampler);
-		//dset.addCombinedImageSampler(marsTexture.imageView, marsTexture.sampler);
-		//dset.addCombinedImageSampler(spaceTexture.imageView, spaceTexture.sampler);
-		dset.finalize();
+		setupDescriptors();
 		std::vector<VkDescriptorSetLayout> dsetLayout = { dset.getLayout() };
+
+		meshDrawer = std::make_unique<MeshDrawer>(device);
+		skyDrawer = std::make_unique<SkyDrawer>(materialsMgr, dsetLayout, device, renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass());
+		fxDrawer = std::make_unique<FxDrawer>(device, materialsMgr, renderer.getFxPassInputImageViews(), dset, renderer.getFxRenderpass().getRenderpass());
 		
-		// prepare for sky rendering
-		SkyRenderSystem skyRenderSys{ materialsMgr, dsetLayout, device };
-		
-		// TODO: this is a temporary single-camera setup
-		Camera camera{ 45.f, 0.8f, 10.f };
-		camera.transform.translation.x = -8.f;
-		
-		// input setup
-		window.input.captureMouseCursor(true);
 		setupDefaultInputs();
-
-		// create test materials
-		ShaderFilePaths shader(makePath("Shaders/shader.vert.spv"),
-								makePath("Shaders/shader.frag.spv"));
-
-		auto mat1 = materialsMgr.createMaterial(MaterialCreateInfo(shader, dsetLayout));
-		//auto mat2 = materialsMgr.createMaterial(MaterialCreateInfo(shader2, setLayout));
-
-		if (loadedMeshes.size() > 0 && loadedMeshes[0]) 
-		{ 
-			for (auto* m : loadedMeshes) 
-			{ 
-				//if (m->useFakeScale) { m->setMaterial(mat2); continue; } //FakeScaleTest082
-				m->setMaterial(mat1); 
-			}
-		}
-		else { throw std::runtime_error("could not access loaded mesh"); }
+		applyDemoMaterials(dsetLayout);
 
 		// window event loop
-		while (!window.getCloseWindow()) 
+		while (!window.getCloseWindow())
 		{
-			window.input.resetInputValues(); // set all input values to zero
+			window.input.resetInputValues(); // reset input values
 			window.input.updateBoundInputs(); // get new input states
-			window.pollEvents();
-			// render frame
-			if (auto commandBuffer = renderer.beginFrame()) 
-			{
-				const uint32_t frameIndex = renderer.getFrameIndex(); // current framebuffer index
-				engineClock.measureFrameDelta(frameIndex);
-
-				glm::mat4 pvm{ 1.f };
-				pvm = camera.getProjectionMatrix() * Camera::getWorldBasisMatrix() * camera.getViewMatrix(true);
-				dset.writeUBOMember(0, pvm, UBO_Layout::ElementAccessor{ 0, 0, 0 }, frameIndex);
-
-				float testScalar1 = 1.f - std::sin(engineClock.getElapsed()* 10.f);
-				float testScalar2 = 1.f - std::sin(engineClock.getElapsed() * 50.f);
-				dset.writeUBOMember(0, testScalar1, UBO_Layout::ElementAccessor{ 1, 0, 0 }, frameIndex);
-				dset.writeUBOMember(0, testScalar2, UBO_Layout::ElementAccessor{ 1, 1, 0 }, frameIndex);
-
-				//applyWorldOriginOffset(camera.transform); //(TODO: ) experimental
-
-				renderer.beginSwapchainRenderPass(commandBuffer);
-				
-				// render sky sphere
-				skyRenderSys.renderSky(commandBuffer, dset.getDescriptorSet(frameIndex), camera.transform.translation);
-
-				//simulateDistanceByScale(*loadedMeshes[1], camera.transform); //FakeScaleTest082
-
-				// render meshes
-				meshRenderSys.renderMeshes(commandBuffer, loadedMeshes, engineClock.getDelta(), engineClock.getElapsed(),
-											dset.getDescriptorSet(frameIndex), simDistOffsets); //FakeScaleTest082
-
-
-				// camera movement
-				auto lookInput = window.input.getMouseDelta();
-				auto mf = window.input.getAxisValue(0);
-				auto mr = window.input.getAxisValue(1);
-				auto mu = window.input.getAxisValue(2);
-				auto xs = window.input.getAxisValue(3) > 0 ? true : false;
-				camera.moveInPlaneXY(lookInput, mf, mr, mu, xs, engineClock.getDelta());
-
-				renderer.endSwapchainRenderPass(commandBuffer);
-				renderer.endFrame(); // submit command buffer
-				camera.aspectRatio = renderer.getAspectRatio();
-			}
+			window.pollEvents(); // process events in window queue
+			render(); // render frame
 		}
-		delete& marsTexture; delete& spaceTexture;
+
 		// window pending close, wait for GPU
 		vkDeviceWaitIdle(device.device());
 	}
@@ -138,9 +56,9 @@ namespace EngineCore
 	{
 		Primitive::MeshBuilder builder{};
 		builder.loadFromFile(makePath("Meshes/mars.obj")); // TODO: hardcoded path
-		loadedMeshes.push_back(new Primitive(device, builder));
-		loadedMeshes[0]->getTransform().translation = Vec{160.f, 0.f, 0.f};
-		loadedMeshes[0]->getTransform().scale = 120.f;
+		loadedMeshes.push_back(std::make_unique<Primitive>(device, builder));
+		loadedMeshes.back()->getTransform().translation = Vec{160.f, 0.f, 0.f};
+		loadedMeshes.back()->getTransform().scale = 120.f;
 
 		/*builder.loadFromFile("G:/VulkanDev/VulkanEngine/Core/DevResources/Meshes/sphere.obj");
 		loadedMeshes.push_back(new Primitive(device, builder)); 
@@ -151,7 +69,7 @@ namespace EngineCore
 		return; // TODO: function terminates here!
 		for (uint32_t i = 0; i < 1; i++) 
 		{ 
-			loadedMeshes.push_back(new Primitive(device, builder));
+			loadedMeshes.push_back(std::make_unique<Primitive>(device, builder));
 			loadedMeshes[i]->getTransform().translation.x = 0.5f * i;
 			if (i == 1) { loadedMeshes[i]->useFakeScale = true; } 
 		}
@@ -160,9 +78,9 @@ namespace EngineCore
 
 	void EngineApplication::setupDefaultInputs()
 	{
-		assert(&window.input && "error setting up default input bindings");
-
 		InputSystem& inputSys = window.input;
+
+		inputSys.captureMouseCursor(true);
 
 		// add binding for forwards (and backwards) movement
 		uint32_t fwdAxisIndex = inputSys.addBinding(KeyBinding(GLFW_KEY_W, 1.f), "kbForwardAxis");
@@ -245,8 +163,95 @@ namespace EngineCore
 		cameraTransform.translation = {0.f,0.f,0.f};
 		if (loadedMeshes.size() > 0) 
 		{
-			for (auto* m : loadedMeshes) { m->getTransform().translation = m->getTransform().translation - nw; }
+			for (auto& m : loadedMeshes) { m->getTransform().translation = m->getTransform().translation - nw; }
 		}
 	}
 
-} // namespace
+	void EngineApplication::setupDescriptors() 
+	{
+		// runtime descriptors test
+		//UBOCreateInfo ubo1{ device };
+		//ubo1.addMember(UBOCreateInfo::mat4); // MVP matrix
+		//ubo1.addMember(UBOCreateInfo::vec3); // camera position
+
+		UBO_Struct ubo1{};
+		ubo1.add(uelem::mat4); // MVP matrix
+		//ubo1.add(std::vector{ uelem::scalar, uelem::vec3 }, 2); // test
+		dset.addUBO(ubo1, device);
+		// as the demo textures will never be overwritten from the CPU, only one buffer is needed for each, so the view can simply be duplicated
+		ImageArrayDescriptor demoTextureArray{};
+		demoTextureArray.addImage(std::vector<VkImageView>(EngineSwapChain::MAX_FRAMES_IN_FLIGHT, marsTexture->getView()));
+		demoTextureArray.addImage(std::vector<VkImageView>(EngineSwapChain::MAX_FRAMES_IN_FLIGHT, spaceTexture->getView()));
+		dset.addImageArray(demoTextureArray);
+		dset.addSampler(marsTexture->sampler);
+		dset.finalize();
+	}
+
+	void EngineApplication::applyDemoMaterials(const std::vector<VkDescriptorSetLayout>& setLayouts)
+	{
+		// create materials
+		ShaderFilePaths shader(makePath("Shaders/shader.vert.spv"), makePath("Shaders/shader.frag.spv"));
+		auto mat1 = materialsMgr.createMaterial(MaterialCreateInfo(shader, setLayouts, renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass()));
+		//auto mat2 = materialsMgr.createMaterial(MaterialCreateInfo(shader2, setLayout));
+
+		// apply materials
+		if (loadedMeshes.size() > 0 && loadedMeshes[0])
+		{
+			for (auto& m : loadedMeshes)
+			{
+				//if (m->useFakeScale) { m->setMaterial(mat2); continue; } //FakeScaleTest082
+				m->setMaterial(mat1);
+			}
+		}
+		else { throw std::runtime_error("could not access loaded mesh"); }
+	}
+
+	void EngineApplication::render() 
+	{
+		if (auto commandBuffer = renderer.beginFrame())
+		{
+			const uint32_t frameIndex = renderer.getFrameIndex(); // current framebuffer index
+			engineClock.measureFrameDelta(frameIndex);
+
+			glm::mat4 pvm{ 1.f };
+			pvm = camera.getProjectionMatrix() * Camera::getWorldBasisMatrix() * camera.getViewMatrix(true);
+			dset.writeUBOMember(0, pvm, UBO_Layout::ElementAccessor{ 0, 0, 0 }, frameIndex);
+
+			//float testScalar1 = 1.f - std::sin(engineClock.getElapsed() * 10.f);
+			//float testScalar2 = 1.f - std::sin(engineClock.getElapsed() * 50.f);
+			//dset.writeUBOMember(0, testScalar1, UBO_Layout::ElementAccessor{ 1, 0, 0 }, frameIndex);
+			//dset.writeUBOMember(0, testScalar2, UBO_Layout::ElementAccessor{ 1, 1, 0 }, frameIndex);
+
+			//applyWorldOriginOffset(camera.transform); //(TODO: ) experimental
+			moveCamera();
+
+			renderer.beginRenderpassBase(commandBuffer);
+
+			// render sky sphere
+			skyDrawer->renderSky(commandBuffer, dset.getDescriptorSet(frameIndex), camera.transform.translation);
+			//simulateDistanceByScale(*loadedMeshes[1].get(), camera.transform); //FakeScaleTest082
+			// render meshes
+			meshDrawer->renderMeshes(commandBuffer, loadedMeshes, engineClock.getDelta(), engineClock.getElapsed(),
+										dset.getDescriptorSet(frameIndex), simDistOffsets); //FakeScaleTest082
+
+			renderer.endRenderpass();
+
+
+			fxDrawer->render(commandBuffer, renderer);
+
+			renderer.endFrame(); // submit command buffer
+			camera.aspectRatio = renderer.getAspectRatio();
+		}
+	}
+
+	void EngineApplication::moveCamera()
+	{
+		auto lookInput = window.input.getMouseDelta();
+		auto mf = window.input.getAxisValue(0);
+		auto mr = window.input.getAxisValue(1);
+		auto mu = window.input.getAxisValue(2);
+		auto xs = window.input.getAxisValue(3) > 0 ? true : false;
+		camera.moveInPlaneXY(lookInput, mf, mr, mu, xs, engineClock.getDelta());
+	}
+
+} 

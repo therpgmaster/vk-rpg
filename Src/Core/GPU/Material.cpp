@@ -12,15 +12,11 @@
 
 namespace EngineCore 
 {
-	Material::Material(const MaterialCreateInfo& matInfo, const EngineRenderSettings& rs,
-					VkRenderPass pass, EngineDevice& deviceIn)
-					: materialCreateInfo{ matInfo }, engineRenderSettings{ rs }, 
-					renderPass{ pass }, device{ deviceIn }
+	Material::Material(const MaterialCreateInfo& matInfo, VkRenderPass pass, EngineDevice& deviceIn)
+		: materialCreateInfo{ matInfo }, renderPass{ pass }, device{ deviceIn }
 	{
-		if (materialCreateInfo.descriptorSetLayouts.empty()) 
-		{ throw std::runtime_error("material error, no descriptor set layouts specified"); }
-		if (renderPass == VK_NULL_HANDLE)
-		{ throw std::runtime_error("material error, material must be assigned a valid renderpass"); }
+		if (materialCreateInfo.descriptorSetLayouts.empty()) { throw std::runtime_error("material error, no descriptor set layouts specified"); }
+		if (renderPass == VK_NULL_HANDLE) { throw std::runtime_error("material error, material must be assigned a valid renderpass"); }
 		createPipelineLayout();
 		createPipeline();
 	}
@@ -75,7 +71,7 @@ namespace EngineCore
 		cfg.rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		cfg.rasterizationInfo.depthClampEnable = VK_FALSE;
 		cfg.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
-		cfg.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;// polygon render mode
+		cfg.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL; // polygon render mode
 		cfg.rasterizationInfo.lineWidth = 1.0f;
 		cfg.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT; // backface culling
 		cfg.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
@@ -93,9 +89,7 @@ namespace EngineCore
 		cfg.multisampleInfo.alphaToCoverageEnable = VK_FALSE;  // Optional
 		cfg.multisampleInfo.alphaToOneEnable = VK_FALSE;       // Optional
 
-		cfg.colorBlendAttachment.colorWriteMask =
-			VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
-			VK_COLOR_COMPONENT_A_BIT;
+		cfg.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 		cfg.colorBlendAttachment.blendEnable = VK_FALSE;
 		cfg.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;   // Optional
 		cfg.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;  // Optional
@@ -128,9 +122,15 @@ namespace EngineCore
 		cfg.dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 		cfg.dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 		cfg.dynamicStateInfo.pDynamicStates = cfg.dynamicStateEnables.data();
-		cfg.dynamicStateInfo.dynamicStateCount =
-			static_cast<uint32_t>(cfg.dynamicStateEnables.size());
+		cfg.dynamicStateInfo.dynamicStateCount = static_cast<uint32_t>(cfg.dynamicStateEnables.size());
 		cfg.dynamicStateInfo.flags = 0;
+
+		// empty vertex inputs, these only need to be populated when loading vertices from a buffer
+		cfg.vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		cfg.vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+		cfg.vertexInputInfo.pVertexBindingDescriptions = nullptr;
+		cfg.vertexInputInfo.vertexBindingDescriptionCount = 0;
+		cfg.vertexInputInfo.vertexAttributeDescriptionCount = 0;
 	}
 
 	// modifies the config to match the provided material properties
@@ -155,7 +155,7 @@ namespace EngineCore
 		// one VkPipelineColorBlendAttachmentState for each color attachment in the framebuffer
 		cfg.colorBlendInfo.attachmentCount = 1; 
 		cfg.colorBlendInfo.pAttachments = &cfg.colorBlendAttachment;
-
+		
 	}
 
 	void Material::createPipelineLayout()
@@ -188,9 +188,19 @@ namespace EngineCore
 		applyMatPropsToPipelineConfig(matInfo.shadingProperties, cfg);
 		cfg.renderPass = renderPass;
 		cfg.pipelineLayout = pipelineLayout;
-		
-		// set pipeline's multisample count (MSAA samples per pixel) to the current engine-global setting
-		cfg.multisampleInfo.rasterizationSamples = engineRenderSettings.sampleCountMSAA;
+		cfg.multisampleInfo.rasterizationSamples = matInfo.samples; // set the pipeline's multisample count
+
+		// these vertex bindings are to be used whenever rendering from a vertex buffer
+
+		auto vertexAttributes = Primitive::Vertex::getAttributeDescriptions();
+		auto vertexBindings = Primitive::Vertex::getBindingDescriptions();
+		if (matInfo.shadingProperties.useVertexInput)
+		{
+			cfg.vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexAttributes.size());
+			cfg.vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(vertexBindings.size());
+			cfg.vertexInputInfo.pVertexAttributeDescriptions = vertexAttributes.data();
+			cfg.vertexInputInfo.pVertexBindingDescriptions = vertexBindings.data();
+		}
 
 		assert(cfg.pipelineLayout != VK_NULL_HANDLE && "pipeline creation error, null pipelineLayout");
 		assert(cfg.renderPass != VK_NULL_HANDLE && "pipeline creation error, null renderPass");
@@ -198,6 +208,7 @@ namespace EngineCore
 		// load shaders
 		createShaderModule(matInfo.shaderPaths.vertPath, &vertexShaderModule); 
 		createShaderModule(matInfo.shaderPaths.fragPath, &fragmentShaderModule);
+
 		// vertex shader stage
 		VkPipelineShaderStageCreateInfo shaderStages[2]{};
 		shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -216,20 +227,11 @@ namespace EngineCore
 		shaderStages[1].pNext = nullptr;
 		shaderStages[1].pSpecializationInfo = nullptr;
 
-		auto bindingDescriptions = Primitive::Vertex::getBindingDescriptions();
-		auto attributeDescriptions = Primitive::Vertex::getAttributeDescriptions();
-		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-		vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
-		vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
-		vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
-
 		VkGraphicsPipelineCreateInfo pipelineInfo{};
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 		pipelineInfo.stageCount = 2;
 		pipelineInfo.pStages = shaderStages;
-		pipelineInfo.pVertexInputState = &vertexInputInfo;
+		pipelineInfo.pVertexInputState = &cfg.vertexInputInfo;
 		pipelineInfo.pInputAssemblyState = &cfg.inputAssemblyInfo;
 		pipelineInfo.pViewportState = &cfg.viewportInfo;
 		pipelineInfo.pRasterizationState = &cfg.rasterizationInfo;
@@ -244,6 +246,7 @@ namespace EngineCore
 
 		pipelineInfo.basePipelineIndex = -1;
 		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+
 
 		// create vulkan pipeline object
 		if (vkCreateGraphicsPipelines(device.device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS)

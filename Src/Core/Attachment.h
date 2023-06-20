@@ -1,49 +1,46 @@
 #pragma once
-// warning-ignore hack only works in header
-#pragma warning(push, 0) 
-#include <vulkan/vulkan.h> // include vulkan
-#pragma warning(pop)
-
+#include "Core/vk.h"
+#include "Core/GPU/Image.h"
+#include <memory>
 #include <vector>
 
 namespace EngineCore
 {
+	class EngineSwapChain;
+	class EngineDevice;
+	
 	enum class AttachmentType { COLOR, RESOLVE, DEPTH, DEPTH_STENCIL };
-	// used to create an attachment's image resources
-	struct AttachmentCreateInfo
-	{
-		size_t imageCount;
-		VkExtent2D extent;
-		VkImageUsageFlags usage;
-		VkImageAspectFlags aspectFlags;
-		VkFormat format;
-		VkSampleCountFlagBits samples;
-		AttachmentType type;
 
-		AttachmentCreateInfo() = default;
-		// sets defaults based on the desired attachment type and swapchain properties
-		AttachmentCreateInfo(AttachmentType t, class EngineSwapChain& swp, VkSampleCountFlagBits s);
+	struct AttachmentProperties 
+	{
+		AttachmentType type; // image creation
+		VkExtent2D extent; // image creation
+		VkFormat format; // image creation
+		uint32_t imageCount; // image creation
+		VkSampleCountFlagBits samples; // image creation
+
+		AttachmentProperties(AttachmentType type) : type{ type }, extent{}, format{}, imageCount{}, samples{} {};
+		VkImageAspectFlags getAspectFlags() const;
 	};
 	
 	// handles the image resources for a framebuffer attachment, may be used in multiple framebuffers
 	class Attachment
 	{
 	public:
-		Attachment(class EngineDevice& device, const AttachmentCreateInfo& info);
-		Attachment(class EngineDevice& device, const AttachmentCreateInfo& info);
-		~Attachment();
+		Attachment(EngineDevice& device, const AttachmentProperties& props, bool input, bool sampled);
+		// swapchain attachment constructor
+		Attachment(EngineDevice& device, const AttachmentProperties& props, const std::vector<VkImage>& swapchainImages);
+		Attachment(Attachment&&) = default;
 
-		const AttachmentCreateInfo& info() const { return createInfo; }
-		const std::vector<VkImageView>& getImageViews() const { return imageViews; }
+		std::vector<VkImageView> getImageViews() const;
+		const AttachmentProperties& getProps() const { return props; }
 		bool isCompatible(const Attachment& b) const;
+		static bool isColor(AttachmentType t) { return t == AttachmentType::COLOR || t == AttachmentType::RESOLVE; }
 
 	private:
-		AttachmentCreateInfo createInfo;
 		class EngineDevice& device;
-		
-		std::vector<VkImage> images;
-		std::vector<VkDeviceMemory> imageMemorys;
-		std::vector<VkImageView> imageViews;
+		std::vector<std::unique_ptr<Image>> images;
+		AttachmentProperties props;
 	};
 
 
@@ -62,11 +59,12 @@ namespace EngineCore
 	// attachment info for renderpass and framebuffer creation
 	struct AttachmentUse
 	{
-		Attachment& attachment;
-		VkAttachmentDescription description;
+		std::vector<VkImageView> imageViews;
+		VkAttachmentDescription description{};
+		AttachmentType type;
 
-		AttachmentUse(Attachment& attachment, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
-			VkImageLayout initialLayout, VkImageLayout finalLayout);
+		AttachmentUse(const Attachment& attachment, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
+						VkImageLayout initialLayout, VkImageLayout finalLayout);
 		void setStencilOps(VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp);
 	};
 
