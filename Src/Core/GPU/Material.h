@@ -49,6 +49,7 @@ namespace EngineCore
 		VkCullModeFlags cullModeFlags = VK_CULL_MODE_BACK_BIT; // backface culling
 		float lineWidth = 1.f;
 		bool useVertexInput = true; // enable when using vertex buffers
+		bool enableDepth = true; // enables reads and writes to the depth attachment
 	};
 
 	// holds all properties needed to create a material object (used to generate a pipeline config)

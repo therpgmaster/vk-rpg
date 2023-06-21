@@ -13,7 +13,7 @@ namespace EngineCore
 	{
 		switch (type)
 		{
-			case AttachmentType::DEPTH_STENCIL: return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+			case AttachmentType::DEPTH_STENCIL: case AttachmentType::DEPTH_STENCIL_RESOLVE: return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 			case AttachmentType::DEPTH:			return VK_IMAGE_ASPECT_DEPTH_BIT;
 			default:							return VK_IMAGE_ASPECT_COLOR_BIT;
 		}
@@ -31,7 +31,7 @@ namespace EngineCore
 		imageInfo.usage |= input ? VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT : 0;
 		imageInfo.usage |= sampled ? VK_IMAGE_USAGE_SAMPLED_BIT : 0;
 		// support lazily allocated memory (device-only, incompatible with sampled usage)
-		imageInfo.usage |= !sampled ? VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT : 0; 
+		imageInfo.usage |= !sampled ? VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT : 0;
 
 		images.reserve(p.imageCount);
 		for (uint32_t i = 0; i < p.imageCount; i++)
@@ -42,13 +42,13 @@ namespace EngineCore
 		return;
 	}
 
-	Attachment::Attachment(EngineDevice& device, const AttachmentProperties& props, const std::vector<VkImage>& swapchainImages)
+	Attachment::Attachment(EngineDevice& device, const AttachmentProperties& props, const std::vector<VkImage>& imagesIn)
 		: device{ device }, props{ props }
 	{
 		const auto& p = getProps();
 		
-		images.reserve(swapchainImages.size());
-		for (const auto& image : swapchainImages)
+		images.reserve(imagesIn.size());
+		for (const auto& image : imagesIn)
 		{
 			images.push_back(std::make_unique<Image>(device, image)); // copy image handle
 			images.back()->updateView(p.format, VK_IMAGE_ASPECT_COLOR_BIT); // create image view
@@ -75,29 +75,40 @@ namespace EngineCore
 				getProps().extent.height == b.getProps().extent.height);
 	}
 
-	AttachmentUse::AttachmentUse(const Attachment& attachment, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
-								VkImageLayout initialLayout, VkImageLayout finalLayout)
+	void AttachmentUse::init(std::vector<VkImageView> views, AttachmentType atype, VkFormat format,
+							VkSampleCountFlagBits samples, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
+							VkImageLayout initialLayout, VkImageLayout finalLayout)
 	{
-		imageViews = attachment.getImageViews();
-		type = attachment.getProps().type;
+		imageViews = views;
+		type = atype;
 
-		description.format = attachment.getProps().format;
-		description.samples = attachment.getProps().samples;
+		description.sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
+		description.format = format;
+		description.samples = samples;
 
 		description.loadOp = loadOp;
 		description.storeOp = storeOp;
-		// use setStencilOps function if stencil is used, disabled here by default
-		description.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		description.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		description.stencilLoadOp = Attachment::isColor(type) ? VK_ATTACHMENT_LOAD_OP_DONT_CARE : loadOp;
+		description.stencilStoreOp = Attachment::isColor(type) ? VK_ATTACHMENT_STORE_OP_DONT_CARE : storeOp;
+
 		description.initialLayout = initialLayout;
 		description.finalLayout = finalLayout;
-	};
-
-	void AttachmentUse::setStencilOps(VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp)
-	{
-		description.stencilLoadOp = stencilLoadOp;
-		description.stencilStoreOp = stencilStoreOp;
 	}
 
+	AttachmentUse::AttachmentUse(const Attachment& attachment, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
+								VkImageLayout initialLayout, VkImageLayout finalLayout)
+	{
+		init(attachment.getImageViews(), attachment.getProps().type, 
+				attachment.getProps().format, attachment.getProps().samples, loadOp, storeOp, initialLayout, finalLayout);
+	}
+
+	AttachmentUse::AttachmentUse(const Attachment& attachment, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
+				VkImageLayout initialLayout, VkImageLayout finalLayout, AttachmentType typeOverride) 
+	{
+		init(attachment.getImageViews(), typeOverride,
+			attachment.getProps().format, attachment.getProps().samples, loadOp, storeOp, initialLayout, finalLayout);
+	}
+
+	
 }
 

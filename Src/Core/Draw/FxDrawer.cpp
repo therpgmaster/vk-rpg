@@ -6,10 +6,14 @@
 
 namespace EngineCore
 {
-	FxDrawer::FxDrawer(EngineDevice& device, MaterialsManager& matMgr, const std::vector<VkImageView>& inputImageViews, DescriptorSet& defaultSet, VkRenderPass renderpass)
+	FxDrawer::FxDrawer(EngineDevice& device, MaterialsManager& matMgr, 
+						const std::vector<VkImageView>& inputImageViews, 
+						const std::vector<VkImageView>& inputDepthImageViews, 
+						DescriptorSet& defaultSet, VkRenderPass renderpass)
 		: device{ device }, defaultSet{ defaultSet }
 	{
-		uboSet = std::make_unique<DescriptorSet>(device); // initialized as normal
+		// initialized as normal
+		uboSet = std::make_unique<DescriptorSet>(device); 
 		UBO_Struct ubo{};
 		ubo.add(uelem::vec2); // viewport extent value to be used in shader
 		uboSet->addUBO(ubo, device);
@@ -17,29 +21,33 @@ namespace EngineCore
 
 		// attachments use the same image count as the swapchain, so that number is used instead of MAX_FRAMES_IN_FLIGHT
 		attachmentSet = std::make_unique<DescriptorSet>(device, (uint32_t)inputImageViews.size()); // set 2
-		ImageArrayDescriptor inputImage{}; // rendered attachment image from the previous renderpass
-		inputImage.addImage(inputImageViews);
-		attachmentSet->addImageArray(inputImage);
+		ImageArrayDescriptor inputImages{}; // rendered attachment image(s) from the previous renderpass
+		inputImages.addImage(inputImageViews);
+		//inputImages.addImage(inputDepthImageViews);
+		attachmentSet->addImageArray(inputImages);
 		attachmentSet->finalize();
 
-		// setup material and mesh
-		ShaderFilePaths shader(makePath("Shaders/fx_test.vert.spv"), makePath("Shaders/fx_test.frag.spv"));
 		auto layouts = std::vector<VkDescriptorSetLayout>{ defaultSet.getLayout(), uboSet->getLayout(), attachmentSet->getLayout() };
-		auto material = matMgr.createMaterial(MaterialCreateInfo(shader, layouts, VK_SAMPLE_COUNT_1_BIT, renderpass));
 
 		// setup material for the fullscreen shaders (no mesh)
 		ShaderFilePaths fullscreenShader(makePath("Shaders/fullscreen.vert.spv"), makePath("Shaders/fullscreen.frag.spv"));
 		MaterialCreateInfo fullscreenInfo(fullscreenShader, layouts, VK_SAMPLE_COUNT_1_BIT, renderpass);
 		fullscreenInfo.shadingProperties.useVertexInput = false;
+		fullscreenInfo.shadingProperties.enableDepth = false;
 		fullscreenInfo.shadingProperties.cullModeFlags = VK_CULL_MODE_NONE;
 		fullscreenMaterial = matMgr.createMaterial(fullscreenInfo);
 
+		// setup material
+		ShaderFilePaths shader(makePath("Shaders/fx_test.vert.spv"), makePath("Shaders/fx_test.frag.spv"));
+		auto material = matMgr.createMaterial(MaterialCreateInfo(shader, layouts, VK_SAMPLE_COUNT_1_BIT, renderpass));
+		// setup mesh
 		Primitive::MeshBuilder builder{};
-		builder.loadFromFile(makePath("Meshes/sphere.obj")); // hardcoded path //"Meshes/6star.obj"
+		builder.loadFromFile(makePath("Meshes/6star.obj"));
 		mesh = std::make_unique<Primitive>(device, builder);
-		mesh->getTransform().translation = Vec{ 0.f, 0.f, 0.f };
-		mesh->getTransform().scale = 25.f;
 		mesh->setMaterial(material);
+		mesh->getTransform().scale = 25.f;
+		mesh->getTransform().translation = Vec{ 0.f, 0.f, 0.f };
+		
 	}
 
 	void FxDrawer::render(VkCommandBuffer cmdBuffer, Renderer& renderer)
@@ -53,17 +61,15 @@ namespace EngineCore
 
 		renderer.beginRenderpassFx(cmdBuffer); // FX PASS START
 
-		bindDescriptorSets(cmdBuffer, fullscreenMaterial.get()->getPipelineLayout(), frameIndex, imageIndex);
-
 		// draw fullscreen
+		bindDescriptorSets(cmdBuffer, fullscreenMaterial.get()->getPipelineLayout(), frameIndex, imageIndex);
 		fullscreenMaterial.get()->bindToCommandBuffer(cmdBuffer);
 		vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
 
-		bindDescriptorSets(cmdBuffer, mesh->getMaterial()->getPipelineLayout(), frameIndex, imageIndex);
-
 		// draw mesh
+		bindDescriptorSets(cmdBuffer, mesh->getMaterial()->getPipelineLayout(), frameIndex, imageIndex);
 		auto* material = mesh->getMaterial();
-		material->bindToCommandBuffer(cmdBuffer); 
+		material->bindToCommandBuffer(cmdBuffer);
 		
 		Material::MeshPushConstants push{};
 		push.transform = mesh->getTransform().mat4();

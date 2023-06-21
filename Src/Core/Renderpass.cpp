@@ -34,25 +34,37 @@ namespace EngineCore
 	void Renderpass::createRenderpass()
 	{
 		// descriptions and references for the attachments
-		std::vector<VkAttachmentReference> colorRefs, resolveRefs;
-		VkAttachmentReference depthStencilRef{};
-		bool hasDepthStencil;
-		createAttachmentReferences(colorRefs, resolveRefs, depthStencilRef, hasDepthStencil);
+		std::vector<VkAttachmentReference2> colorRefs, resolveRefs, depthResolveRefs;
+		VkAttachmentReference2 depthStencilRef, depthStencilResolveRef;
+		bool hasDepth, hasDepthResolve;
+		createAttachmentReferences(colorRefs, resolveRefs, depthStencilRef, depthStencilResolveRef, hasDepth, hasDepthResolve);
 
-		const auto numColor = colorRefs.size();
-		const auto numResolve = resolveRefs.size();
-		if (numResolve > 0 && numResolve != numColor) { throw std::runtime_error("resolve and color attachment counts mismatch"); }
-		if (numColor == 0 && !hasDepthStencil) { throw std::runtime_error("no color or depth-stencil attachments specified"); }
+		size_t numColor = colorRefs.size();
+		size_t numResolve = resolveRefs.size();
+		assert((numColor > 0 || hasDepth) && "no color or depth-stencil attachments specified");
+		assert((numResolve < 1 || numColor == numResolve) && "resolve and color attachment counts mismatch");
+		//assert((hasDepth || !hasDepthResolve) && "added depth resolve attachment but no depth attachment");
 
 		// create subpass
-		VkSubpassDescription subpass = {};
+		VkSubpassDescription2 subpass = {};
+		subpass.sType = VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_2;
 		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpass.colorAttachmentCount = (uint32_t)numColor;
 		subpass.pColorAttachments = numColor ? colorRefs.data() : NULL;
 		subpass.pResolveAttachments = numResolve ? resolveRefs.data() : NULL;
-		subpass.pDepthStencilAttachment = hasDepthStencil ? &depthStencilRef : NULL;
+		subpass.pDepthStencilAttachment = hasDepth ? &depthStencilRef : NULL;
+		VkSubpassDescriptionDepthStencilResolve depthResolve = {};
+		depthResolve.sType = VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_DEPTH_STENCIL_RESOLVE;
+		if (hasDepthResolve) 
+		{
+			depthResolve.depthResolveMode = VK_RESOLVE_MODE_SAMPLE_ZERO_BIT; // sample zero mode is guaranteed to be supported
+			depthResolve.stencilResolveMode = VK_RESOLVE_MODE_SAMPLE_ZERO_BIT;
+			depthResolve.pDepthStencilResolveAttachment = &depthStencilResolveRef;
+			subpass.pNext = &depthResolve;
+		}
 
-		VkSubpassDependency dependency = {};
+		VkSubpassDependency2 dependency = {};
+		dependency.sType = VK_STRUCTURE_TYPE_SUBPASS_DEPENDENCY_2;
 		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 		dependency.srcAccessMask = 0;
 		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
@@ -62,8 +74,8 @@ namespace EngineCore
 
 		// create renderpass
 		auto descriptions = getAttachmentDescriptions();
-		VkRenderPassCreateInfo renderPassInfo = {};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		VkRenderPassCreateInfo2 renderPassInfo = {};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO_2;
 		renderPassInfo.attachmentCount = static_cast<uint32_t>(descriptions.size());
 		renderPassInfo.pAttachments = descriptions.data();
 		renderPassInfo.subpassCount = 1;
@@ -71,42 +83,51 @@ namespace EngineCore
 		renderPassInfo.dependencyCount = 1;
 		renderPassInfo.pDependencies = &dependency;
 
-		if (vkCreateRenderPass(device.device(), &renderPassInfo, nullptr, &renderpass) != VK_SUCCESS)
+		if (vkCreateRenderPass2(device.device(), &renderPassInfo, nullptr, &renderpass) != VK_SUCCESS)
 		{ throw std::runtime_error("failed to create renderpass"); }
 	}
 
-	std::vector<VkAttachmentDescription> Renderpass::getAttachmentDescriptions() const 
+	std::vector<VkAttachmentDescription2> Renderpass::getAttachmentDescriptions() const 
 	{
-		std::vector<VkAttachmentDescription> d;
+		std::vector<VkAttachmentDescription2> d;
 		d.reserve(attachments.size());
 		for (const AttachmentUse& a : attachments) { d.push_back(a.description); }
 		return d;
 	}
 
-	void Renderpass::createAttachmentReferences(std::vector<VkAttachmentReference>& color, std::vector<VkAttachmentReference>& resolve,
-												VkAttachmentReference& depthStencil, bool& hasDepthStencil)
+	void Renderpass::createAttachmentReferences(std::vector<VkAttachmentReference2>& color, std::vector<VkAttachmentReference2>& resolve,
+												VkAttachmentReference2& depthStencil, VkAttachmentReference2& depthStencilResolve, 
+												bool& hasDepth, bool& hasDepthResolve)
+												
 	{
-		hasDepthStencil = false;
+		using AT = AttachmentType;
+		hasDepth = false;
+		hasDepthResolve = false;
 		uint32_t i = 0; // index for VkRenderPassCreateInfo pAttachments array
 		for (const AttachmentUse& a : attachments)
 		{
-			VkAttachmentReference ref{};
+			VkAttachmentReference2 ref{};
+			ref.sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
 			ref.attachment = i++;
-			ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			ref.layout = Attachment::isColor(a.type) ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL :
+														VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 			switch (a.type)
 			{
-			case AttachmentType::COLOR:
+			case AT::COLOR:
 				color.push_back(ref);
 				break;
-			case AttachmentType::RESOLVE:
+			case AT::RESOLVE:
 				resolve.push_back(ref);
 				break;
-			case AttachmentType::DEPTH: case AttachmentType::DEPTH_STENCIL:
-				ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-				assert(!hasDepthStencil && "cannot add more than one depth stencil attachment");
-				hasDepthStencil = true;
+			case AT::DEPTH: case AT::DEPTH_STENCIL: 
+				assert(!hasDepth && "cannot add more than one depth stencil attachment");
+				hasDepth = true;
 				depthStencil = ref;
 				break;
+			case AT::DEPTH_STENCIL_RESOLVE:
+				assert(!hasDepthResolve && "cannot add more than one depth stencil resolve attachment");
+				hasDepthResolve = true;
+				depthStencilResolve = ref;
 			}
 		}
 	}

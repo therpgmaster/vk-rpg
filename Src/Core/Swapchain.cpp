@@ -54,7 +54,7 @@ namespace EngineCore
 		VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
 		VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
 		imageFormat = surfaceFormat.format;
-		depthFormat = findDepthFormat();
+		depthFormat = findDepthFormat(true);
 		extent = chooseSwapExtent(swapChainSupport.capabilities, windowExtent);
 
 		imageCount = swapChainSupport.capabilities.minImageCount + 1;
@@ -241,10 +241,11 @@ namespace EngineCore
 		}
 	}
 
-	VkFormat EngineSwapChain::findDepthFormat() 
+	VkFormat EngineSwapChain::findDepthFormat(bool stencilRequired)
 	{
-		return device.findSupportedFormat( { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
-											VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+		std::vector<VkFormat> candidates = { VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT };
+		if (!stencilRequired) { candidates.push_back(VK_FORMAT_D32_SFLOAT); }
+		return device.findSupportedFormat(candidates, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 	}
 
 }  // namespace

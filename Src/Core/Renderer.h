@@ -58,6 +58,7 @@ namespace EngineCore
 		}
 
 		const std::vector<VkImageView>& getFxPassInputImageViews() const { return fxPassInputImageViews; }
+		const std::vector<VkImageView>& getFxPassInputDepthImageViews() const { return fxPassInputDepthImageViews; }
 
 	private:
 		void createCommandBuffers();
@@ -77,6 +78,7 @@ namespace EngineCore
 		std::unique_ptr<Renderpass> fxRenderpass;
 		std::vector<std::unique_ptr<Attachment>> attachments;
 		std::vector<VkImageView> fxPassInputImageViews; // view(s) to the color attachment image rendered by the first renderpass
+		std::vector<VkImageView> fxPassInputDepthImageViews;
 		
 		EngineWindow& window;
 		EngineDevice& device;

@@ -31,16 +31,18 @@ namespace EngineCore
 		class EngineDevice& device;
 
 		std::vector<AttachmentUse> attachments;
-		std::vector<VkAttachmentDescription> attachmentDescriptions;
+		std::vector<VkAttachmentDescription2> attachmentDescriptions;
 
 		VkExtent2D framebufferExtent;
 		uint32_t framebufferCount;
 		
 		bool areAttachmentsCompatible() const;
-		std::vector<VkAttachmentDescription> getAttachmentDescriptions() const;
+		std::vector<VkAttachmentDescription2> getAttachmentDescriptions() const;
 		void createRenderpass();
-		void createAttachmentReferences(std::vector<VkAttachmentReference>& color, std::vector<VkAttachmentReference>& resolve, 
-										VkAttachmentReference& depthStencil, bool& hasDepthStencil);
+		void createAttachmentReferences(std::vector<VkAttachmentReference2>& color, std::vector<VkAttachmentReference2>& resolve, 
+										VkAttachmentReference2& depthStencil, VkAttachmentReference2& depthStencilResolve, 
+										bool& hasDepth, bool& hasDepthResolve);
+										
 		void createFramebuffers();
 
 	};

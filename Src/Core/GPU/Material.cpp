@@ -155,6 +155,9 @@ namespace EngineCore
 		// one VkPipelineColorBlendAttachmentState for each color attachment in the framebuffer
 		cfg.colorBlendInfo.attachmentCount = 1; 
 		cfg.colorBlendInfo.pAttachments = &cfg.colorBlendAttachment;
+
+		cfg.depthStencilInfo.depthTestEnable = mp.enableDepth ? VK_TRUE : VK_FALSE;
+		cfg.depthStencilInfo.depthWriteEnable = mp.enableDepth ? VK_TRUE : VK_FALSE;
 		
 	}
 

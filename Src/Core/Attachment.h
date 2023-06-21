@@ -9,7 +9,7 @@ namespace EngineCore
 	class EngineSwapChain;
 	class EngineDevice;
 	
-	enum class AttachmentType { COLOR, RESOLVE, DEPTH, DEPTH_STENCIL };
+	enum class AttachmentType { COLOR, RESOLVE, DEPTH, DEPTH_STENCIL, DEPTH_STENCIL_RESOLVE };
 
 	struct AttachmentProperties 
 	{
@@ -28,7 +28,7 @@ namespace EngineCore
 	{
 	public:
 		Attachment(EngineDevice& device, const AttachmentProperties& props, bool input, bool sampled);
-		// swapchain attachment constructor
+		// create from existing images(e.g. for swapchain attachment)
 		Attachment(EngineDevice& device, const AttachmentProperties& props, const std::vector<VkImage>& swapchainImages);
 		Attachment(Attachment&&) = default;
 
@@ -57,15 +57,23 @@ namespace EngineCore
 		const static VkAttachmentStoreOp STORE = VK_ATTACHMENT_STORE_OP_STORE;
 	};
 	// attachment info for renderpass and framebuffer creation
-	struct AttachmentUse
+	class AttachmentUse
 	{
+	public:
 		std::vector<VkImageView> imageViews;
-		VkAttachmentDescription description{};
+		VkAttachmentDescription2 description{};
 		AttachmentType type;
+
+		void init(std::vector<VkImageView> views, AttachmentType atype, VkFormat format,
+					VkSampleCountFlagBits samples, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
+					VkImageLayout initialLayout, VkImageLayout finalLayout);
 
 		AttachmentUse(const Attachment& attachment, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
 						VkImageLayout initialLayout, VkImageLayout finalLayout);
-		void setStencilOps(VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp);
+		// alternate constructor, for overriding attachment type when reused in another renderpass
+		AttachmentUse(const Attachment& attachment, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
+						VkImageLayout initialLayout, VkImageLayout finalLayout, AttachmentType typeOverride);
+		
 	};
 
 }

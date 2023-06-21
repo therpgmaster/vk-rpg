@@ -16,19 +16,19 @@ namespace EngineCore
 	class FxDrawer
 	{
 	public:
-		FxDrawer(EngineDevice& device, MaterialsManager& matMgr, const std::vector<VkImageView>& inputImageViews, DescriptorSet& defaultSet, VkRenderPass renderpass);
+		FxDrawer(EngineDevice& device, MaterialsManager& matMgr, 
+				const std::vector<VkImageView>& inputImageViews, 
+				const std::vector<VkImageView>& inputDepthImageViews, 
+				DescriptorSet& defaultSet, VkRenderPass renderpass);
 
 		void render(VkCommandBuffer cmdBuffer, Renderer& renderer);
 
 	private:
 		EngineDevice& device;
 		
-
-		/*	set 1 holds additional data, treated as any other descriptor set (using frames in flight number)
-			set 2 is for the the attachment image binding, same number of internal sets as swapchain images */
 		DescriptorSet& defaultSet;
-		std::unique_ptr<DescriptorSet> uboSet;
-		std::unique_ptr<DescriptorSet> attachmentSet;
+		std::unique_ptr<DescriptorSet> uboSet; // additional data, treated as any other descriptor set (using frames in flight number)
+		std::unique_ptr<DescriptorSet> attachmentSet; // attachment image bindings, same number of internal sets as swapchain images
 		std::unique_ptr<Primitive> mesh;
 		MaterialHandle fullscreenMaterial;
 

@@ -48,7 +48,7 @@ namespace EngineCore
 		VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 		VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
 		VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, VkExtent2D windowExtent);
-		VkFormat findDepthFormat();
+		VkFormat findDepthFormat(bool stencilRequired);
 
 		VkFormat imageFormat;
 		VkFormat depthFormat;

@@ -34,7 +34,8 @@ namespace EngineCore
 
 		meshDrawer = std::make_unique<MeshDrawer>(device);
 		skyDrawer = std::make_unique<SkyDrawer>(materialsMgr, dsetLayout, device, renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass());
-		fxDrawer = std::make_unique<FxDrawer>(device, materialsMgr, renderer.getFxPassInputImageViews(), dset, renderer.getFxRenderpass().getRenderpass());
+		fxDrawer = std::make_unique<FxDrawer>(device, materialsMgr, renderer.getFxPassInputImageViews(), renderer.getFxPassInputDepthImageViews(),
+												dset, renderer.getFxRenderpass().getRenderpass());
 		
 		setupDefaultInputs();
 		applyDemoMaterials(dsetLayout);

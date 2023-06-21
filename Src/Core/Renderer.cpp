@@ -85,40 +85,51 @@ namespace EngineCore
 		depth.type = AttachmentType::DEPTH;
 		depth.format = swapchain->getDepthFormat();
 
-		AttachmentProperties depthFx = depth;
-		depthFx.samples = VK_SAMPLE_COUNT_1_BIT;
+		AttachmentProperties depthResolve = depth;
+		depthResolve.type = AttachmentType::DEPTH_STENCIL_RESOLVE;
+		depthResolve.samples = VK_SAMPLE_COUNT_1_BIT;
+
 
 		const auto& colorAttachment = addAttachment(color, false, false);
 		const auto& colorResolveAttachment = addAttachment(resolve, false, true);
 		const auto& depthAttachment = addAttachment(depth, false, false);
+		const auto& depthResolveAttachment = addAttachment(depthResolve, false, true);
 
 		const auto& swapchainAttachment = swapchain->getSwapchainAttachment();
-		const auto& depthFxAttachment = addAttachment(depthFx, false, false);
+		//const auto& depthFxAttachment = addAttachment(depthResolve, false, false);
 		
 		const std::vector<Use> baseUses =
 		{
 				Use(colorAttachment, Load::CLEAR, Store::STORE,
 				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL),
 
-				Use(colorResolveAttachment, Load::CLEAR, Store::STORE, // resolves from color attachment, will be sampled from in 2nd pass
+				Use(colorResolveAttachment, Load::CLEAR, Store::STORE,
 				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL),
 
 				Use(depthAttachment, Load::CLEAR, Store::STORE,
+				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL),
+
+				Use(depthResolveAttachment, Load::CLEAR, Store::STORE,
 				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
 		};
+
+		// bound to descriptor set to be sampled in fx pass
+		fxPassInputImageViews = colorResolveAttachment.getImageViews();
+		fxPassInputDepthImageViews = depthAttachment.getImageViews();
+
 		const std::vector<Use> fxUses =
 		{
 				Use(swapchainAttachment, Load::CLEAR, Store::STORE,
 				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR),
 
-				Use(depthFxAttachment, Load::CLEAR, Store::STORE,
-				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+				Use(depthResolveAttachment, Load::LOAD, Store::STORE,
+				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 
+				AttachmentType::DEPTH_STENCIL) // reused with different type flag
 		};
 
 		baseRenderpass = std::make_unique<Renderpass>(device, baseUses, color.extent, color.imageCount);
 		fxRenderpass = std::make_unique<Renderpass>(device, fxUses, color.extent, color.imageCount);
 
-		fxPassInputImageViews = colorResolveAttachment.getImageViews(); // bound to descriptor set to be sampled in fx pass
 	}
 
 	void Renderer::beginRenderpassBase(VkCommandBuffer cmdBuffer) { baseRenderpass->begin(cmdBuffer, currentImageIndex); }
