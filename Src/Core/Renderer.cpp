@@ -43,6 +43,7 @@ namespace EngineCore
 	{
 		createSwapchain();
 		createRenderpasses();
+		if (swapchainCreatedCallback) { swapchainCreatedCallback(); }
 	}
 
 	void Renderer::createSwapchain()
@@ -140,7 +141,11 @@ namespace EngineCore
 		assert(!isFrameStarted && "beginFrame failed, frame already in progress");
 		
 		auto result = swapchain->acquireNextImage(&currentImageIndex);
-		if (result == VK_ERROR_OUT_OF_DATE_KHR) { create(); return nullptr; } // recreate swapchain and renderpasses
+		if (result == VK_ERROR_OUT_OF_DATE_KHR) 
+		{ 
+			create(); // recreate swapchain and renderpasses
+			return nullptr; 
+		} 
 		if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) { throw std::runtime_error("failed to acquire swapchain image"); }
 
 		isFrameStarted = true;

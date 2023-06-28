@@ -2,7 +2,6 @@
 #include "Core/Window.h"
 #include "Core/GPU/Device.h"
 #include "Core/Renderer.h"
-#include "Core/GPU/MaterialsManager.h"
 #include "Core/Camera.h"
 #include "Core/Draw/MeshDrawer.h"
 #include "Core/Draw/SkyDrawer.h"
@@ -88,28 +87,23 @@ namespace EngineCore
 		void applyWorldOriginOffset(Transform& cameraTransform);
 
 	private:
-		void loadActors();
+		void loadDemoMeshes();
 		void setupDefaultInputs();
 		void setupDescriptors();
-		void applyDemoMaterials(const std::vector<VkDescriptorSetLayout>& setLayouts);
+		void applyDemoMaterials();
+		void setupDrawers();
+		void onSwapchainCreated();
 		void render();
 		void moveCamera();
 
-		Camera camera;
-		std::unique_ptr<Image> spaceTexture;
-		std::unique_ptr<Image> marsTexture;
-		std::unique_ptr<MeshDrawer> meshDrawer;
-		std::unique_ptr<SkyDrawer> skyDrawer;
-		std::unique_ptr<FxDrawer> fxDrawer; // TODO: consider recreating this object with the swapchain, since swapchain image count is not guaranteed to stay the same
-
 		// engine application window (creates a window using GLFW) 
 		EngineWindow window{ WIDTH, HEIGHT, "Vulkan Window" };
+
 		// render device (instantiates vulkan)
 		EngineDevice device{ window };
-		// the renderer manages the swapchain and the vulkan command buffers
+		
+		// the renderer manages the swapchain, renderpasses, and the vulkan command buffers
 		Renderer renderer{ window, device, renderSettings };
-		// the primary materials manager (contains the master material objects)
-		MaterialsManager materialsMgr{ renderer, renderSettings, device };
 
 		EngineClock engineClock{};
 
@@ -117,6 +111,16 @@ namespace EngineCore
 
 		std::unique_ptr<DescriptorPool> globalDescriptorPool{};
 		std::vector<std::unique_ptr<Primitive>> loadedMeshes;
+
+		Camera camera;
+		std::unique_ptr<Image> spaceTexture;
+		std::unique_ptr<Image> marsTexture;
+		std::unique_ptr<MeshDrawer> meshDrawer;
+		std::unique_ptr<SkyDrawer> skyDrawer;
+		std::unique_ptr<FxDrawer> fxDrawer;
+
+		// TODO: this is strictly temporary
+		glm::vec3 lightPos{ -20.f, 100.f, 45.f };
 
 	};
 

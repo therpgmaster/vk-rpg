@@ -6,6 +6,7 @@
 #include <memory>
 #include <vector>
 #include <cassert>
+#include <functional>
 
 namespace EngineCore
 {
@@ -60,12 +61,15 @@ namespace EngineCore
 		const std::vector<VkImageView>& getFxPassInputImageViews() const { return fxPassInputImageViews; }
 		const std::vector<VkImageView>& getFxPassInputDepthImageViews() const { return fxPassInputDepthImageViews; }
 
+		std::function<void(void)> swapchainCreatedCallback;
+
 	private:
 		void createCommandBuffers();
 		void freeCommandBuffers();
 
 		// constructs a new set of renderpasses and a swapchain
 		void create();
+		
 		void createSwapchain();
 		void createRenderpasses();
 		const Attachment& addAttachment(const AttachmentProperties& p, bool inputAttachment, bool sampled) 

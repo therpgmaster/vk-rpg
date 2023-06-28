@@ -18,16 +18,16 @@ namespace EngineCore
 		PipelineConfig(const PipelineConfig&) = delete;
 		PipelineConfig& operator=(const PipelineConfig&) = delete;
 
-		VkPipelineViewportStateCreateInfo viewportInfo;
-		VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo;
-		VkPipelineRasterizationStateCreateInfo rasterizationInfo;
-		VkPipelineMultisampleStateCreateInfo multisampleInfo;
-		VkPipelineColorBlendAttachmentState colorBlendAttachment;
-		VkPipelineColorBlendStateCreateInfo colorBlendInfo;
-		VkPipelineDepthStencilStateCreateInfo depthStencilInfo;
-		std::vector<VkDynamicState> dynamicStateEnables;
-		VkPipelineDynamicStateCreateInfo dynamicStateInfo;
-		VkPipelineVertexInputStateCreateInfo vertexInputInfo;
+		VkPipelineViewportStateCreateInfo viewportInfo{};
+		VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo{};
+		VkPipelineRasterizationStateCreateInfo rasterizationInfo{};
+		VkPipelineMultisampleStateCreateInfo multisampleInfo{};
+		VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+		VkPipelineColorBlendStateCreateInfo colorBlendInfo{};
+		VkPipelineDepthStencilStateCreateInfo depthStencilInfo{};
+		std::vector<VkDynamicState> dynamicStateEnables{};
+		VkPipelineDynamicStateCreateInfo dynamicStateInfo{};
+		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 		VkPipelineLayout pipelineLayout = nullptr;
 		VkRenderPass renderPass = nullptr;
 		uint32_t subpass = 0;
@@ -55,8 +55,7 @@ namespace EngineCore
 	// holds all properties needed to create a material object (used to generate a pipeline config)
 	struct MaterialCreateInfo 
 	{
-		MaterialCreateInfo(const ShaderFilePaths& shadersIn,
-						const std::vector<VkDescriptorSetLayout>& setLayoutsIn, VkSampleCountFlagBits samples, VkRenderPass rp)
+		MaterialCreateInfo(const ShaderFilePaths& shadersIn, const std::vector<VkDescriptorSetLayout>& setLayoutsIn, VkSampleCountFlagBits samples, VkRenderPass rp)
 			: shaderPaths(shadersIn), descriptorSetLayouts(setLayoutsIn), samples{ samples }, renderpass{ rp } {};
 			 
 		MaterialShadingProperties shadingProperties{};
@@ -70,16 +69,16 @@ namespace EngineCore
 	class Material 
 	{
 	public:
-		Material(const MaterialCreateInfo& matInfo, VkRenderPass pass, EngineDevice& deviceIn);
+		Material(const MaterialCreateInfo& matInfo, EngineDevice& device);
 		~Material();
 
 		Material(const Material&) = delete;
 		Material& operator=(const Material&) = delete;
 
-		VkPipelineLayout getPipelineLayout() { return pipelineLayout; }
+		VkPipelineLayout getPipelineLayout() const { return pipelineLayout; }
 
 		// binds this material's pipeline to the specified command buffer
-		void bindToCommandBuffer(VkCommandBuffer commandBuffer);
+		void bindToCommandBuffer(VkCommandBuffer commandBuffer) const;
 
 		struct MeshPushConstants
 		{ 
@@ -87,18 +86,21 @@ namespace EngineCore
 			glm::mat4 normalMatrix{1.f};
 		};
 		// updates push constant values for a mesh-specific pipeline (only mesh materials)
-		void writePushConstantsForMesh(VkCommandBuffer commandBuffer, MeshPushConstants& data);
-		
+		void writePushConstantsForMesh(VkCommandBuffer commandBuffer, MeshPushConstants& data) const;
+
+		void setMaterialSpecificDescriptorSet(const std::shared_ptr<DescriptorSet>& set) { descriptorSet = set; }
+		DescriptorSet* getMaterialSpecificDescriptorSet() { return descriptorSet.get(); }
+
 	private:
 		MaterialCreateInfo materialCreateInfo;
-
-		VkRenderPass renderPass = VK_NULL_HANDLE;
 
 		EngineDevice& device;
 		VkShaderModule vertexShaderModule;
 		VkShaderModule fragmentShaderModule;
 		VkPipelineLayout pipelineLayout;
 		VkPipeline pipeline;
+
+		std::shared_ptr<DescriptorSet> descriptorSet = nullptr; // material-specific descriptor set
 
 		static void getDefaultPipelineConfig(PipelineConfig& cfg);
 		static void applyMatPropsToPipelineConfig(const MaterialShadingProperties& mp, PipelineConfig& cfg);
@@ -107,20 +109,6 @@ namespace EngineCore
 		void createPipelineLayout();
 		void createPipeline();
 
-	};
-
-	// handle to a managed material
-	struct MaterialHandle
-	{
-		MaterialHandle() = default;
-		MaterialHandle(Material* m, class MaterialsManager* mg) : materialPtr{ m }, mgr{ mg } {};
-		Material* get() const { return materialPtr; }
-		// report to materials manager one user started/stopped using this material 
-		void matUserAdd(const bool& remove = false) const;
-		void matUserRemove() const { matUserAdd(true); } // calls matUserAdd with remove flag
-	private:
-		Material* materialPtr = nullptr;
-		class MaterialsManager* mgr = nullptr;
 	};
 
 } // namespace

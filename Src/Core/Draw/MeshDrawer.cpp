@@ -17,23 +17,46 @@
 namespace EngineCore
 {
 	void MeshDrawer::renderMeshes(VkCommandBuffer commandBuffer, std::vector<std::unique_ptr<Primitive>>& meshes,
-			const float& deltaTimeSeconds, float time, VkDescriptorSet sceneGlobalDescriptorSet, Transform& fakeScaleOffsets) //FakeScaleTest082
+			const float& deltaTimeSeconds, float time, uint32_t frameIndex, VkDescriptorSet sceneGlobalDescriptorSet, 
+			const glm::mat4& viewMatrix, Transform& fakeScaleOffsets) //FakeScaleTest082
 	{
-		for (auto& pMesh : meshes)
+		for (uint32_t i = 0; i < meshes.size(); i++)
 		{
-			if (!pMesh.get() || !pMesh->getMaterial()) { continue; }
-			auto& mesh = *pMesh.get();
-			auto& material = *mesh.getMaterial();
+			auto& mesh = meshes[i];
+			auto material = mesh->getMaterial();
 
-			material.bindToCommandBuffer(commandBuffer); // bind material-specific shading pipeline
-			// bind scene global descriptor set for every primitive
-			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, material.getPipelineLayout(),
-									0, 1, &sceneGlobalDescriptorSet, 0, nullptr);
+			material->bindToCommandBuffer(commandBuffer); // bind material-specific shading pipeline
+
+			std::vector<VkDescriptorSet> sets;
+			// scene global descriptor set
+			sets.push_back(sceneGlobalDescriptorSet);
+
+			if (auto* matSet = material->getMaterialSpecificDescriptorSet())
+			{
+				// bind material-specific descriptor set
+				sets.push_back(matSet->getDescriptorSet(frameIndex));
+			}
+
+			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, material->getPipelineLayout(),
+				0, sets.size(), sets.data(), 0, nullptr);
 
 			// spin 3D primitive - demo
-			float spinRate = 0.1f;
-			mesh.getTransform().rotation.z = glm::mod(mesh.getTransform().rotation.z + spinRate * deltaTimeSeconds, glm::two_pi<float>());
-			mesh.getTransform().rotation.y = glm::mod(mesh.getTransform().rotation.y + spinRate * 0.8f * deltaTimeSeconds, glm::two_pi<float>());
+			if (i == 0) 
+			{
+				float spinRate = 0.1f;
+				mesh->getTransform().rotation.z = glm::mod(mesh->getTransform().rotation.z + spinRate * deltaTimeSeconds, glm::two_pi<float>());
+				mesh->getTransform().rotation.y = glm::mod(mesh->getTransform().rotation.y + spinRate * 0.8f * deltaTimeSeconds, glm::two_pi<float>());
+				continue; // TODO: this skips rendering the first mesh!!!
+			}
+
+			// spin 3D primitive - demo
+			if (i == 1)
+			{
+
+				float spinRate = 0.3f;
+				mesh->getTransform().rotation.z = glm::mod(mesh->getTransform().rotation.z + spinRate * deltaTimeSeconds, glm::two_pi<float>());
+			}
+			
 
 			/*if (camera != nullptr)
 			{
@@ -71,23 +94,24 @@ namespace EngineCore
 				0, sizeof(SimplePushConstantData), &push);*/
 
 			//FakeScaleTest082
-			if (mesh.useFakeScale) 
+			if (mesh->useFakeScale) 
 			{
 				Material::MeshPushConstants push{};
-				push.transform = fakeScaleOffsets.mat4(); //t
-				material.writePushConstantsForMesh(commandBuffer, push);
+				push.transform = fakeScaleOffsets.mat4();
+				material->writePushConstantsForMesh(commandBuffer, push);
 			} 
 			else 
 			{
 				// NON-TEST CODE!
 				Material::MeshPushConstants push{};
-				push.transform = mesh.getTransform().mat4();
-				material.writePushConstantsForMesh(commandBuffer, push);
+				push.transform = mesh->getTransform().mat4();
+				push.normalMatrix = glm::transpose(glm::inverse(push.transform));
+				material->writePushConstantsForMesh(commandBuffer, push);
 			}
 
 			// record mesh draw command
-			mesh.bind(commandBuffer);
-			mesh.draw(commandBuffer);
+			mesh->bind(commandBuffer);
+			mesh->draw(commandBuffer);
 		}
 	}
 

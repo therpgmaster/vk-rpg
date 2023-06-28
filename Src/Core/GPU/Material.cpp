@@ -1,6 +1,5 @@
 #include "Core/GPU/Material.h"
 #include "Core/Primitive.h"
-#include "Core/GPU/MaterialsManager.h"
 
 #include <fstream>
 #include <iostream>
@@ -12,11 +11,11 @@
 
 namespace EngineCore 
 {
-	Material::Material(const MaterialCreateInfo& matInfo, VkRenderPass pass, EngineDevice& deviceIn)
-		: materialCreateInfo{ matInfo }, renderPass{ pass }, device{ deviceIn }
+	Material::Material(const MaterialCreateInfo& matInfo, EngineDevice& device)
+		: materialCreateInfo{ matInfo }, device{ device }
 	{
-		if (materialCreateInfo.descriptorSetLayouts.empty()) { throw std::runtime_error("material error, no descriptor set layouts specified"); }
-		if (renderPass == VK_NULL_HANDLE) { throw std::runtime_error("material error, material must be assigned a valid renderpass"); }
+		if (matInfo.descriptorSetLayouts.empty()) { throw std::runtime_error("material error, no descriptor set layouts specified"); }
+		if (matInfo.renderpass == VK_NULL_HANDLE) { throw std::runtime_error("material error, material must be assigned a valid renderpass"); }
 		createPipelineLayout();
 		createPipeline();
 	}
@@ -30,7 +29,7 @@ namespace EngineCore
 		vkDestroyPipeline(device.device(), pipeline, nullptr);
 	};
 
-	void Material::bindToCommandBuffer(VkCommandBuffer commandBuffer) 
+	void Material::bindToCommandBuffer(VkCommandBuffer commandBuffer) const
 	{
 		/* a pipeline binding affects subsequent commands until a different pipeline is bound */
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -189,7 +188,7 @@ namespace EngineCore
 		getDefaultPipelineConfig(cfg);
 		// modify config with material shading properties
 		applyMatPropsToPipelineConfig(matInfo.shadingProperties, cfg);
-		cfg.renderPass = renderPass;
+		cfg.renderPass = materialCreateInfo.renderpass;
 		cfg.pipelineLayout = pipelineLayout;
 		cfg.multisampleInfo.rasterizationSamples = matInfo.samples; // set the pipeline's multisample count
 
@@ -256,20 +255,12 @@ namespace EngineCore
 		{ throw std::runtime_error("failed to create pipeline"); }
 	}
 
-	void Material::writePushConstantsForMesh(VkCommandBuffer commandBuffer, MeshPushConstants& data)
+	void Material::writePushConstantsForMesh(VkCommandBuffer commandBuffer, MeshPushConstants& data) const
 	{
 		// the command buffer must be in the recording state for the command to succeed
 		vkCmdPushConstants(commandBuffer, pipelineLayout,
 			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
 			0, sizeof(MeshPushConstants), (void*) &data);
-	}
-
-	void MaterialHandle::matUserAdd(const bool& remove) const
-	{
-		if (!materialPtr) { return; } // does nothing if the handle is null
-		assert(mgr && "cannot add or remove users on unmanaged MaterialHandle");
-		if (remove) { mgr->matReportUserAddOrRemove(*this, -1); }
-		else { mgr->matReportUserAddOrRemove(*this, 1); }
 	}
 
 } // namespace

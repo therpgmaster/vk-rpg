@@ -39,6 +39,6 @@ void main()
   gl_Position = ubo1.projectionViewMatrix * push.transform * position;
   fragNormalWS = normalize(mat3(push.normalMatrix) * normal);
   fragPositionWS = vec4(push.transform * position).xyz;
-  fragColor = vec3(0.8, 0.6, 0.6); // use fixed value instead of vertex color
   fragUV = uv;
+  fragColor = color;
 }

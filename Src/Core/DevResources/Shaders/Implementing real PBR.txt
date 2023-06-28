@@ -3,14 +3,13 @@ Fresnel(H,L) *
 Geometry(H,L,V) *
 NDF(H,...) / 
 (4*dot(V,N)*dot(L,N)) + 
-(1-Fresnel(N,L)) * 
-(1-Fresnel(N,V)) * 
+(1-Fresnel(N,L)) * (1-Fresnel(N,V)) * 
 Lambertian
 
 NDF = Trowbridge-Reitz GGX
-Geometry = Smith's Schlick-GGX
+Geometry = Smith's-Schlick GGX
 NO Schlick Fresnel!
-Looks like the correct diffuse term should be: (1-Fresnel(N,L)) * (1-Fresnel(N,V))
+Looks like the correct diffuse term should be (1-Fresnel(N,L)) * (1-Fresnel(N,V))
 
 Source: https://docs.google.com/document/d/1ZLT1-fIek2JkErN9ZPByeac02nWipMbO89oCW2jxzXo/edit
 See also: https://github.com/KhronosGroup/glTF/issues/1853

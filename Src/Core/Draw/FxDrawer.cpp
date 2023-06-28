@@ -2,11 +2,12 @@
 #include "Core/Primitive.h"
 #include "Core/Types/CommonTypes.h"
 #include "Core/GPU/Descriptors.h"
+#include "Core/GPU/Material.h"
 #include "Core/Renderer.h"
 
 namespace EngineCore
 {
-	FxDrawer::FxDrawer(EngineDevice& device, MaterialsManager& matMgr, 
+	FxDrawer::FxDrawer(EngineDevice& device,
 						const std::vector<VkImageView>& inputImageViews, 
 						const std::vector<VkImageView>& inputDepthImageViews, 
 						DescriptorSet& defaultSet, VkRenderPass renderpass)
@@ -35,18 +36,16 @@ namespace EngineCore
 		fullscreenInfo.shadingProperties.useVertexInput = false;
 		fullscreenInfo.shadingProperties.enableDepth = false;
 		fullscreenInfo.shadingProperties.cullModeFlags = VK_CULL_MODE_NONE;
-		fullscreenMaterial = matMgr.createMaterial(fullscreenInfo);
+		fullscreenMaterial = std::make_unique<Material>(fullscreenInfo, device);
 
-		// setup material
-		ShaderFilePaths shader(makePath("Shaders/fx_test.vert.spv"), makePath("Shaders/fx_test.frag.spv"));
-		auto material = matMgr.createMaterial(MaterialCreateInfo(shader, layouts, VK_SAMPLE_COUNT_1_BIT, renderpass));
-		// setup mesh
+		// setup mesh and material
 		Primitive::MeshBuilder builder{};
-		builder.loadFromFile(makePath("Meshes/6star.obj"));
+		builder.loadFromFile(makePath("Meshes/teapot.obj"));
 		mesh = std::make_unique<Primitive>(device, builder);
-		mesh->setMaterial(material);
-		mesh->getTransform().scale = 25.f;
-		mesh->getTransform().translation = Vec{ 0.f, 0.f, 0.f };
+		ShaderFilePaths shader(makePath("Shaders/fx_test.vert.spv"), makePath("Shaders/fx_test.frag.spv"));
+		mesh->setMaterial(MaterialCreateInfo(shader, layouts, VK_SAMPLE_COUNT_1_BIT, renderpass));
+		mesh->getTransform().scale = 5.f;
+		mesh->getTransform().translation = Vec{ -80.f, 0.f, 0.f };
 		
 	}
 
@@ -63,12 +62,12 @@ namespace EngineCore
 
 		// draw fullscreen
 		bindDescriptorSets(cmdBuffer, fullscreenMaterial.get()->getPipelineLayout(), frameIndex, imageIndex);
-		fullscreenMaterial.get()->bindToCommandBuffer(cmdBuffer);
+		fullscreenMaterial->bindToCommandBuffer(cmdBuffer);
 		vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
 
 		// draw mesh
 		bindDescriptorSets(cmdBuffer, mesh->getMaterial()->getPipelineLayout(), frameIndex, imageIndex);
-		auto* material = mesh->getMaterial();
+		auto material = mesh->getMaterial();
 		material->bindToCommandBuffer(cmdBuffer);
 		
 		Material::MeshPushConstants push{};

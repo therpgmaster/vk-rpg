@@ -1,12 +1,12 @@
 #include "Core/Draw/SkyDrawer.h"
 #include "Core/Primitive.h"
 #include "Core/GPU/Device.h"
-#include "Core/GPU/MaterialsManager.h"
 #include "Core/Types/CommonTypes.h"
+#include "Core/GPU/Material.h"
 
 namespace EngineCore
 {
-	SkyDrawer::SkyDrawer(MaterialsManager& mgr, std::vector<VkDescriptorSetLayout>& setLayouts,
+	SkyDrawer::SkyDrawer(const std::vector<VkDescriptorSetLayout>& setLayouts,
 									EngineDevice& device, VkSampleCountFlagBits samples, VkRenderPass renderpass)
 	{
 		// TODO: hardcoded paths
@@ -19,12 +19,10 @@ namespace EngineCore
 		skyMesh = std::make_unique<Primitive>(device, builder);
 		skyMesh->getTransform().scale = 100000.f;
 
-		// create unique material for sky
+		// create unique material for sky, set to render backfaces, since it will be viewed from inside
 		MaterialCreateInfo matInfo(skyShaders, setLayouts, samples, renderpass);
-		// set the sky material to render backfaces, since it will be viewed from inside
 		matInfo.shadingProperties.cullModeFlags = VK_CULL_MODE_NONE;
-		auto m = mgr.createMaterial(matInfo); // create
-		skyMesh.get()->setMaterial(m); // use
+		skyMesh->setMaterial(matInfo);
 	}
 
 	void SkyDrawer::renderSky(VkCommandBuffer commandBuffer, VkDescriptorSet sceneGlobalDescriptorSet, 
@@ -32,12 +30,12 @@ namespace EngineCore
 	{
 		// aliases for convenience
 		auto& sky = *skyMesh.get(); 
-		auto& skyMat = *sky.getMaterial();
+		auto skyMat = sky.getMaterial();
 
-		skyMat.bindToCommandBuffer(commandBuffer); // bind sky shader pipeline
+		skyMat->bindToCommandBuffer(commandBuffer); // bind sky shader pipeline
 
 		// bind scene global descriptor set
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyMat.getPipelineLayout(),
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyMat->getPipelineLayout(),
 									0, 1, &sceneGlobalDescriptorSet, 0, nullptr);
 
 		// sky mesh position should be centered at the observer (camera) at all times
@@ -45,7 +43,7 @@ namespace EngineCore
 		otf.translation = observerPosition;
 		Material::MeshPushConstants push{};
 		push.transform = otf.mat4();
-		skyMat.writePushConstantsForMesh(commandBuffer, push);
+		skyMat->writePushConstantsForMesh(commandBuffer, push);
 
 		// record draw command for sky mesh
 		sky.bind(commandBuffer);

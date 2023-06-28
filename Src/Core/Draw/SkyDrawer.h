@@ -10,12 +10,11 @@ namespace EngineCore
 {
 	class EngineDevice;
 	class Primitive;
-	class MaterialsManager;
 
 	class SkyDrawer 
 	{
 	public:
-		SkyDrawer(MaterialsManager& mgr, std::vector<VkDescriptorSetLayout>& setLayouts,
+		SkyDrawer(const std::vector<VkDescriptorSetLayout>& setLayouts,
 						EngineDevice& device, VkSampleCountFlagBits samples, VkRenderPass renderpass);
 
 		void renderSky(VkCommandBuffer commandBuffer, VkDescriptorSet sceneGlobalDescriptorSet, 

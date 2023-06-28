@@ -16,29 +16,21 @@
 
 namespace EngineCore
 {
-	EngineApplication::EngineApplication()
-	{
-		loadActors();
-		// demo textures
-		marsTexture = std::make_unique<Image>(device, makePath("Textures/mars6k_v2.jpg"));
-		spaceTexture = std::make_unique<Image>(device, makePath("Textures/space.png"));
-		// temporary single-camera setup
-		camera = Camera(45.f, 0.8f, 10.f);
-		camera.transform.translation.x = -8.f;
-	}
+	EngineApplication::EngineApplication() {}
 
 	void EngineApplication::startExecution()
 	{
-		setupDescriptors();
-		std::vector<VkDescriptorSetLayout> dsetLayout = { dset.getLayout() };
+		renderer.swapchainCreatedCallback = std::bind(&EngineApplication::onSwapchainCreated, this);
 
-		meshDrawer = std::make_unique<MeshDrawer>(device);
-		skyDrawer = std::make_unique<SkyDrawer>(materialsMgr, dsetLayout, device, renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass());
-		fxDrawer = std::make_unique<FxDrawer>(device, materialsMgr, renderer.getFxPassInputImageViews(), renderer.getFxPassInputDepthImageViews(),
-												dset, renderer.getFxRenderpass().getRenderpass());
-		
+		// temporary single-camera setup
+		camera = Camera(45.f, 0.8f, 10.f);
+		camera.transform.translation.x = -8.f;
+
+		loadDemoMeshes();
+		setupDescriptors();
+		setupDrawers();
 		setupDefaultInputs();
-		applyDemoMaterials(dsetLayout);
+		applyDemoMaterials();
 
 		// window event loop
 		while (!window.getCloseWindow())
@@ -53,12 +45,27 @@ namespace EngineCore
 		vkDeviceWaitIdle(device.device());
 	}
 
-	void EngineApplication::loadActors() 
+	void EngineApplication::setupDrawers() 
+	{
+		meshDrawer = std::make_unique<MeshDrawer>(device);
+		skyDrawer = std::make_unique<SkyDrawer>(std::vector<VkDescriptorSetLayout>{ dset.getLayout() },
+												device, renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass());
+		fxDrawer = std::make_unique<FxDrawer>(device, renderer.getFxPassInputImageViews(), renderer.getFxPassInputDepthImageViews(),
+												dset, renderer.getFxRenderpass().getRenderpass());
+	}
+
+	void EngineApplication::onSwapchainCreated()
+	{
+		// fxDrawer uses swapchain image count, so it must be recreated together with the swapchain
+		setupDrawers();
+	}
+
+	void EngineApplication::loadDemoMeshes()
 	{
 		Primitive::MeshBuilder builder{};
 		builder.loadFromFile(makePath("Meshes/mars.obj")); // TODO: hardcoded path
 		loadedMeshes.push_back(std::make_unique<Primitive>(device, builder));
-		loadedMeshes.back()->getTransform().translation = Vec{160.f, 0.f, 0.f};
+		loadedMeshes.back()->getTransform().translation = Vec{300.f, 0.f, 0.f};
 		loadedMeshes.back()->getTransform().scale = 120.f;
 
 		/*builder.loadFromFile("G:/VulkanDev/VulkanEngine/Core/DevResources/Meshes/sphere.obj");
@@ -67,14 +74,12 @@ namespace EngineCore
 		loadedMeshes[1]->getTransform().translation.x = 0.f;
 		loadedMeshes[1]->getTransform().scale = 1.f;*/
 
-		return; // TODO: function terminates here!
-		for (uint32_t i = 0; i < 1; i++) 
-		{ 
-			loadedMeshes.push_back(std::make_unique<Primitive>(device, builder));
-			loadedMeshes[i]->getTransform().translation.x = 0.5f * i;
-			if (i == 1) { loadedMeshes[i]->useFakeScale = true; } 
-		}
-
+		
+		Primitive::MeshBuilder builder2{};
+		builder2.loadFromFile(makePath("Meshes/6star.obj")); // TODO: hardcoded path
+		loadedMeshes.push_back(std::make_unique<Primitive>(device, builder2));
+		loadedMeshes.back()->getTransform().translation = Vec{ 20.f, 0.f, 0.f };
+		loadedMeshes.back()->getTransform().scale = 10.f;
 	}
 
 	void EngineApplication::setupDefaultInputs()
@@ -170,10 +175,9 @@ namespace EngineCore
 
 	void EngineApplication::setupDescriptors() 
 	{
-		// runtime descriptors test
-		//UBOCreateInfo ubo1{ device };
-		//ubo1.addMember(UBOCreateInfo::mat4); // MVP matrix
-		//ubo1.addMember(UBOCreateInfo::vec3); // camera position
+		// demo textures
+		marsTexture = std::make_unique<Image>(device, makePath("Textures/mars6k_v2.jpg"));
+		spaceTexture = std::make_unique<Image>(device, makePath("Textures/space.png"));
 
 		UBO_Struct ubo1{};
 		ubo1.add(uelem::mat4); // MVP matrix
@@ -188,23 +192,29 @@ namespace EngineCore
 		dset.finalize();
 	}
 
-	void EngineApplication::applyDemoMaterials(const std::vector<VkDescriptorSetLayout>& setLayouts)
+	void EngineApplication::applyDemoMaterials()
 	{
-		// create materials
+		// create demo material
 		ShaderFilePaths shader(makePath("Shaders/shader.vert.spv"), makePath("Shaders/shader.frag.spv"));
-		auto mat1 = materialsMgr.createMaterial(MaterialCreateInfo(shader, setLayouts, renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass()));
-		//auto mat2 = materialsMgr.createMaterial(MaterialCreateInfo(shader2, setLayout));
+		loadedMeshes[0]->setMaterial(MaterialCreateInfo(shader, std::vector<VkDescriptorSetLayout>{ dset.getLayout() }, 
+											renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass()));
 
-		// apply materials
-		if (loadedMeshes.size() > 0 && loadedMeshes[0])
-		{
-			for (auto& m : loadedMeshes)
-			{
-				//if (m->useFakeScale) { m->setMaterial(mat2); continue; } //FakeScaleTest082
-				m->setMaterial(mat1);
-			}
-		}
-		else { throw std::runtime_error("could not access loaded mesh"); }
+
+		// descriptor set must be initialized before using its layout
+		UBO_Struct ubo_g{};
+		ubo_g.add(uelem::vec3); // camera position
+		ubo_g.add(uelem::vec3); // light position
+		ubo_g.add(uelem::scalar); // roughness
+		auto matSet = std::make_shared<DescriptorSet>(device);
+		matSet->addUBO(ubo_g, device);
+		matSet->finalize(); // create material-specific descriptor set
+
+		ShaderFilePaths shader2(makePath("Shaders/shader.vert.spv"), makePath("Shaders/pbr.frag.spv")); 
+		// TODO: materials should automatically include the layout of their own set (if present) on construct!!!
+		loadedMeshes[1]->setMaterial(MaterialCreateInfo(shader2, std::vector<VkDescriptorSetLayout>{ dset.getLayout(), matSet->getLayout() },
+											renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass()));
+		loadedMeshes[1]->getMaterial()->setMaterialSpecificDescriptorSet(matSet); // TODO: better way to create material-specific sets
+
 	}
 
 	void EngineApplication::render() 
@@ -214,8 +224,10 @@ namespace EngineCore
 			const uint32_t frameIndex = renderer.getFrameIndex(); // current framebuffer index
 			engineClock.measureFrameDelta(frameIndex);
 
+			glm::mat4 viewMatrix = camera.getViewMatrix(true);
+
 			glm::mat4 pvm{ 1.f };
-			pvm = camera.getProjectionMatrix() * Camera::getWorldBasisMatrix() * camera.getViewMatrix(true);
+			pvm = camera.getProjectionMatrix() * Camera::getWorldBasisMatrix() * viewMatrix;
 			dset.writeUBOMember(0, pvm, UBO_Layout::ElementAccessor{ 0, 0, 0 }, frameIndex);
 
 			//float testScalar1 = 1.f - std::sin(engineClock.getElapsed() * 10.f);
@@ -224,6 +236,18 @@ namespace EngineCore
 			//dset.writeUBOMember(0, testScalar2, UBO_Layout::ElementAccessor{ 1, 1, 0 }, frameIndex);
 
 			//applyWorldOriginOffset(camera.transform); //(TODO: ) experimental
+
+			// update material-specific descriptors on mesh
+			glm::vec3 camPos = camera.transform.translation;
+
+
+			//lightPos.y -= 5.f * engineClock.getDelta();
+			float roughness = 0.1f;
+			auto& mesh1dset = *loadedMeshes[1]->getMaterial()->getMaterialSpecificDescriptorSet();
+			mesh1dset.writeUBOMember(0, camPos, UBO_Layout::ElementAccessor{ 0, 0, 0 }, frameIndex);
+			mesh1dset.writeUBOMember(0, lightPos, UBO_Layout::ElementAccessor{ 1, 0, 0 }, frameIndex);
+			mesh1dset.writeUBOMember(0, roughness, UBO_Layout::ElementAccessor{ 2, 0, 0 }, frameIndex);
+
 			moveCamera();
 
 			renderer.beginRenderpassBase(commandBuffer);
@@ -232,8 +256,8 @@ namespace EngineCore
 			skyDrawer->renderSky(commandBuffer, dset.getDescriptorSet(frameIndex), camera.transform.translation);
 			//simulateDistanceByScale(*loadedMeshes[1].get(), camera.transform); //FakeScaleTest082
 			// render meshes
-			meshDrawer->renderMeshes(commandBuffer, loadedMeshes, engineClock.getDelta(), engineClock.getElapsed(),
-										dset.getDescriptorSet(frameIndex), simDistOffsets); //FakeScaleTest082
+			meshDrawer->renderMeshes(commandBuffer, loadedMeshes, engineClock.getDelta(), engineClock.getElapsed(), frameIndex,
+										dset.getDescriptorSet(frameIndex), viewMatrix * camera.getProjectionMatrix(), simDistOffsets); //FakeScaleTest082
 
 			renderer.endRenderpass();
 

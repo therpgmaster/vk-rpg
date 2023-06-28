@@ -2,23 +2,22 @@
 
 #include "Core/GPU/Device.h"
 #include "Core/GPU/Buffer.h"
-#include "Core/GPU/Material.h"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 
-// std
 #include <vector>
 #include <stdexcept>
 #include <memory>
 
 namespace EngineCore 
 {
+	class Material;
+	struct MaterialCreateInfo;
+
 	class Primitive
 	{
-		Transform transform{};
-
 	public:
 		struct Vertex
 		{
@@ -39,10 +38,10 @@ namespace EngineCore
 			void loadFromFile(const std::string& path);
 		};
 
-		Primitive(EngineCore::EngineDevice& engineDevice, const MeshBuilder& builder);
-		Primitive(EngineCore::EngineDevice& engineDevice, const std::vector<Vertex>& vertices);
-		Primitive(EngineCore::EngineDevice& engineDevice);
-		~Primitive();
+		Primitive(EngineDevice& device, const MeshBuilder& builder);
+		Primitive(EngineDevice& device, const std::vector<Vertex>& vertices);
+		Primitive(EngineDevice& device);
+		~Primitive() = default;
 
 		Primitive(const Primitive&) = delete;
 		Primitive& operator=(const Primitive&) = delete;
@@ -52,10 +51,9 @@ namespace EngineCore
 		// records a draw call to the command buffer (final step to render mesh)
 		void draw(VkCommandBuffer commandBuffer);
 
-		// apply a new material (reports one user removed from previous material)
-		void setMaterial(const EngineCore::MaterialHandle& newMaterial);
-
-		EngineCore::Material* getMaterial() const { return materialHandle.get(); }
+		void setMaterial(std::shared_ptr<Material> newMaterial);
+		void setMaterial(const MaterialCreateInfo& info);
+		std::shared_ptr<Material> getMaterial() const;
 
 		bool useFakeScale = false; //TODO: TMP - FakeScaleTest082
 
@@ -66,15 +64,16 @@ namespace EngineCore
 		void createVertexBuffers(const std::vector<Vertex>& vertices);
 		void createIndexBuffers(const std::vector<uint32_t>& indices);
 
-		EngineCore::EngineDevice& engineDevice;
+		EngineDevice& device;
 
-		std::unique_ptr<EngineCore::GBuffer> vertexBuffer;
+		Transform transform{};
+		std::shared_ptr<Material> material;
+
+		std::unique_ptr<GBuffer> vertexBuffer;
+		std::unique_ptr<GBuffer> indexBuffer;
 		uint32_t vertexCount;
-
-		bool hasIndexBuffer = false;
-		std::unique_ptr<EngineCore::GBuffer> indexBuffer;
 		uint32_t indexCount;
+		bool hasIndexBuffer = false;
 
-		EngineCore::MaterialHandle materialHandle{};
 	};
 } // namespace

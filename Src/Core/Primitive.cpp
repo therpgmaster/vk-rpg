@@ -1,5 +1,6 @@
 #include "Core/Primitive.h"
-// std
+#include "Core/GPU/Material.h"
+
 #include <cassert>
 #include <cstring>
 
@@ -8,18 +9,18 @@
 
 namespace EngineCore
 {
-	Primitive::Primitive(EngineCore::EngineDevice& device, const MeshBuilder& builder) : engineDevice{ device }
+	Primitive::Primitive(EngineDevice& device, const MeshBuilder& builder) : device{ device }
 	{
 		createVertexBuffers(builder.vertices);
 		createIndexBuffers(builder.indices);
 	}
 
-	Primitive::Primitive(EngineCore::EngineDevice& device, const std::vector<Vertex>& vertices) : engineDevice{ device }
+	Primitive::Primitive(EngineDevice& device, const std::vector<Vertex>& vertices) : device{ device }
 	{
 		createVertexBuffers(vertices);
 	}
 
-	Primitive::Primitive(EngineCore::EngineDevice& device) : engineDevice{ device }
+	Primitive::Primitive(EngineDevice& device) : device{ device }
 	{
 		Primitive::MeshBuilder builder{};
 		builder.makeCubeMesh();
@@ -27,24 +28,14 @@ namespace EngineCore
 		createIndexBuffers(builder.indices);
 	}
 
-	Primitive::~Primitive()
-	{
-		materialHandle.matUserRemove();
-	}
+	void Primitive::setMaterial(std::shared_ptr<Material> newMaterial) { material = newMaterial; }
 
-	void Primitive::setMaterial(const EngineCore::MaterialHandle& newMaterial)
-	{
-		if (!newMaterial.get()) { return; }
-		// report to the materials manager that we are no longer using the old one
-		materialHandle.matUserRemove();
-		materialHandle = newMaterial;
-		newMaterial.matUserAdd(); // report use of new material
-	}
+	void Primitive::setMaterial(const MaterialCreateInfo& info) { material = std::make_shared<Material>(info, device); }
+
+	std::shared_ptr<Material> Primitive::getMaterial() const { return material; }
 
 	void Primitive::createVertexBuffers(const std::vector<Vertex>& vertices)
 	{
-		using namespace EngineCore;
-
 		vertexCount = static_cast<uint32_t>(vertices.size());
 		assert(vertexCount >= 3 && "vertexCount cannot be below 3");
 		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertexCount;
@@ -52,7 +43,7 @@ namespace EngineCore
 		// temporary buffer to transfer from CPU (host) to GPU (device)
 		GBuffer stagingBuffer
 		{
-			engineDevice, vertexSize, vertexCount,
+			device, vertexSize, vertexCount,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
 		};
@@ -60,17 +51,15 @@ namespace EngineCore
 		stagingBuffer.writeToBuffer((void*)vertices.data()); // write vertices
 
 		// destination buffer, GPU only for speed (not host accessible)
-		vertexBuffer = std::make_unique<GBuffer>(engineDevice, vertexSize, vertexCount,
+		vertexBuffer = std::make_unique<GBuffer>(device, vertexSize, vertexCount,
 			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-		engineDevice.copyBuffer(stagingBuffer.getBuffer(), vertexBuffer->getBuffer(), bufferSize);
+		device.copyBuffer(stagingBuffer.getBuffer(), vertexBuffer->getBuffer(), bufferSize);
 	}
 
 	void Primitive::createIndexBuffers(const std::vector<uint32_t>& indices)
 	{
-		using namespace EngineCore;
-
 		indexCount = static_cast<uint32_t>(indices.size());
 		hasIndexBuffer = indexCount > 0;
 		if (!hasIndexBuffer) { return; }
@@ -79,18 +68,18 @@ namespace EngineCore
 		// same as for vertex buffer
 		GBuffer stagingBuffer
 		{
-			engineDevice, indexSize, indexCount,
+			device, indexSize, indexCount,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
 		};
 		stagingBuffer.map();
 		stagingBuffer.writeToBuffer((void*)indices.data());
 
-		indexBuffer = std::make_unique<GBuffer>(engineDevice, indexSize, indexCount,
+		indexBuffer = std::make_unique<GBuffer>(device, indexSize, indexCount,
 			VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT); // note INDEX_BUFFER_BIT
 
-		engineDevice.copyBuffer(stagingBuffer.getBuffer(), indexBuffer->getBuffer(), bufferSize);
+		device.copyBuffer(stagingBuffer.getBuffer(), indexBuffer->getBuffer(), bufferSize);
 	}
 
 	void Primitive::bind(VkCommandBuffer commandBuffer)
