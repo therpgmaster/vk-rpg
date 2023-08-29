@@ -7,6 +7,8 @@
 #include "Core/Draw/SkyDrawer.h"
 #include "Core/Draw/FxDrawer.h"
 
+#include "Core/Physics/PhysicsScene.h"
+
 #include <memory>
 #include <vector>
 #include <chrono> // timing

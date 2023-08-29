@@ -15,16 +15,20 @@ public:
 	Vector3D() : x{ 0 }, y{ 0 }, z{ 0 } {};
 	T x; T y; T z;
 	// operator mess, can be ignored
-	Vector3D<T> operator+(const Vector3D<T>& other) const { return Vector3D{ x + other.x, y + other.y, z + other.z }; } // +
-	Vector3D<T> operator-(const Vector3D<T>& other) const { return Vector3D{ x - other.x, y - other.y, z - other.z }; } // -
-	Vector3D<T> operator*(const Vector3D<T>& other) const { return Vector3D{ x * other.x, y * other.y, z * other.z }; } // *
-	Vector3D<T> operator/(const Vector3D<T>& other) const { return Vector3D{ x / other.x, y / other.y, z / other.z }; } // /
-	Vector3D<T> operator+=(const Vector3D<T>& other) { *this = *this + other; return *this; } // Vector += Vector
-	Vector3D<T> operator-=(const Vector3D<T>& other) { *this = *this - other; return *this; } // Vector -= Vector
+	Vector3D<T> operator+(const Vector3D<T>& v) const { return Vector3D{ x + v.x, y + v.y, z + v.z }; } // +
+	Vector3D<T> operator-(const Vector3D<T>& v) const { return Vector3D{ x - v.x, y - v.y, z - v.z }; } // -
+	Vector3D<T> operator*(const Vector3D<T>& v) const { return Vector3D{ x * v.x, y * v.y, z * v.z }; } // *
+	Vector3D<T> operator/(const Vector3D<T>& v) const { return Vector3D{ x / v.x, y / v.y, z / v.z }; } // /
+	Vector3D<T> operator+=(const Vector3D<T>& v) { *this = *this + v; return *this; } // Vector += Vector
+	Vector3D<T> operator-=(const Vector3D<T>& v) { *this = *this - v; return *this; } // Vector -= Vector
+	Vector3D<T> operator*=(const Vector3D<T>& v) { *this = *this * v; return *this; } // Vector *= Vector
 
-	Vector3D<float> operator+(const float& f) { return *this + Vector3D<float>(f, f, f); } // Vector + float
-	Vector3D<float> operator-(const float& f) { return *this - Vector3D<float>(f, f, f); } // Vector - float
-	Vector3D<float> operator*(const float& f) { return *this * Vector3D<float>(f, f, f); } // Vector * float
+	Vector3D<float> operator+(const float& f) const { return Vector3D{ x + f, y + f, z + f }; } // Vector + float
+	Vector3D<float> operator-(const float& f) const { return Vector3D{ x - f, y - f, z - f }; } // Vector - float
+	Vector3D<float> operator*(const float& f) const { return Vector3D{ x * f, y * f, z * f }; } // Vector * float
+	Vector3D<float> operator+=(const float& f) { *this = *this + f; return *this; } // Vector += float
+	Vector3D<float> operator-=(const float& f) { *this = *this - f; return *this; } // Vector -= float
+	Vector3D<float> operator*=(const float& f) { *this = *this * f; return *this; } // Vector *= float
 	
 #ifdef GLM_VERSION
 	Vector3D<T>(const glm::vec3& g) : x{ g.x }, y{ g.y }, z{ g.z } {};
@@ -50,10 +54,11 @@ public:
 		}
 		return false;
 	}
+	const T& getMagnitude() const { return std::sqrt(x * x + y * y + z * z); }
 	static float distanceSquared(const Vector3D<T>& a, const Vector3D<T>& b) { return pow(b.x - a.x,2) + pow(b.y - a.y,2) + pow(b.z - a.z,2); }
 	static float distance(const Vector3D<T>& a, const Vector3D<T>& b) { return sqrt(distanceSquared(a, b)); }
 	static auto direction(Vector3D<float> a, Vector3D<float> b) { return Vector3D<float>(b - a).getNormalized(); }
-
+	void zero() { x = 0; y = 0; z = 0; }
 };
 // shorthand (alias) for a 3D float Vector, always use this unless you need double precision
 using Vec = Vector3D<float>;
