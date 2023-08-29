@@ -7,6 +7,9 @@ x64/
 *.filters
 *.user
 
+# CMake output
+out/
+
 # SPIR-V compiled shaders
 *.spv
 
