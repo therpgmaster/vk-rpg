@@ -201,4 +201,4 @@ namespace EngineCore
 		};
 	}
 
-} // namespace
+}

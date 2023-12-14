@@ -665,4 +665,4 @@ namespace EngineCore
 		endSingleTimeCommands(commandBuffer);
 	}
 
-}  // namespace
+}

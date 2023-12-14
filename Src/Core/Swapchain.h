@@ -69,4 +69,4 @@ namespace EngineCore
 		size_t currentFrame = 0;
 	};
 
-}  // namespace
+}

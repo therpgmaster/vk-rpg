@@ -248,4 +248,4 @@ namespace EngineCore
 		return device.findSupportedFormat(candidates, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 	}
 
-}  // namespace
+}

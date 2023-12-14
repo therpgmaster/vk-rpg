@@ -29,6 +29,6 @@ namespace Math
 	template<typename T = float>
 	T invSqrt(const T& v) { return 1.0 / sqrt(v); }
 
-} // namespace Math
+}
 
 

@@ -45,7 +45,7 @@ namespace EngineCore
 		SampleCountSetting sampleCountMSAA;
 	};
 
-} // namespace
+}
 
 
 

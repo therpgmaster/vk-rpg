@@ -59,4 +59,4 @@ namespace EngineCore
 		VkMemoryPropertyFlags memoryPropertyFlags;
 	};
 
-} // namespace
+}

@@ -106,4 +106,4 @@ namespace EngineCore
 		return invalidate(alignmentSize, index * alignmentSize);
 	}
 
-}  // namespace
+}

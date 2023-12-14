@@ -34,4 +34,4 @@ namespace EngineCore
 		void bindDescriptorSets(VkCommandBuffer cmdBuffer, VkPipelineLayout pipelineLayout, uint32_t frameIndex, uint32_t swapImageIndex);
 	};
 
-} // namespace
+}

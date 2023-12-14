@@ -76,4 +76,4 @@ namespace EngineCore
 		bool hasIndexBuffer = false;
 
 	};
-} // namespace
+}
