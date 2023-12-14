@@ -10,6 +10,10 @@ x64/
 # Third-party libraries
 Src/Core/ThirdParty/
 
+Src/Core/Dependencies/**/.git/
+Src/Core/Dependencies/**/.gitignore
+Src/Core/Dependencies/**/.gitattributes
+
 # CMake output
 out/
 
