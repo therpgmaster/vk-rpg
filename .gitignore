@@ -7,6 +7,9 @@ x64/
 *.filters
 *.user
 
+# Third-party libraries
+Src/Core/ThirdParty/
+
 # CMake output
 out/
 
