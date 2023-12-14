@@ -32,12 +32,12 @@ public:
 	
 #ifdef GLM_VERSION
 	Vector3D<T>(const glm::vec3& g) : x{ g.x }, y{ g.y }, z{ g.z } {};
-	operator glm::vec3() { return glm::vec3( x, y, z ); }
+	operator glm::vec3() const { return glm::vec3( x, y, z ); }
 #endif
 	static auto dot(const Vector3D<T>& a, const Vector3D<T>& b) 
-	{ return (a.x * b.x) + (a.y * b.y) + (a.z * b.z); }
+		{ return (a.x * b.x) + (a.y * b.y) + (a.z * b.z); }
 	static Vector3D<T> cross(const Vector3D<T>& a, const Vector3D<T>& b) 
-	{ return ((a.y * b.z - b.y * a.z), (a.z * b.x - b.z * a.x), (a.x * b.y - b.x * a.y)); }
+		{ return ((a.y * b.z - b.y * a.z), (a.z * b.x - b.z * a.x), (a.x * b.y - b.x * a.y)); }
 	Vector3D<T> getNormalized() const 
 	{ 
 		const auto sum = dot(*this, *this); // magnitude squared
@@ -58,10 +58,12 @@ public:
 	static float distanceSquared(const Vector3D<T>& a, const Vector3D<T>& b) { return pow(b.x - a.x,2) + pow(b.y - a.y,2) + pow(b.z - a.z,2); }
 	static float distance(const Vector3D<T>& a, const Vector3D<T>& b) { return sqrt(distanceSquared(a, b)); }
 	static auto direction(Vector3D<float> a, Vector3D<float> b) { return Vector3D<float>(b - a).getNormalized(); }
-	void zero() { x = 0; y = 0; z = 0; }
+	//Vector3D<T>& zero() { x = 0; y = 0; z = 0; return *this; }
+	static Vector3D<T> zero() { return Vector3D<T>(); }
 };
 // shorthand (alias) for a 3D float Vector, always use this unless you need double precision
 using Vec = Vector3D<float>;
+using Vec64 = Vector3D<double>;
 // additional float-Vector operators
 //Vec operator+(Vec v, float f) { return v + Vec(f, f, f); } // Vector + float
 //Vec operator-(Vec v, float f) { return v - Vec(f, f, f); } // Vector - float
@@ -69,12 +71,15 @@ using Vec = Vector3D<float>;
 //Vec operator+(float f, Vec v) { return Vec(v.x + f, v.y + f, v.z + f); } // float + Vector
 //Vec operator*(float f, Vec v) { return Vec(v.x * f, v.y * f, v.z * f); } // float * Vector
 
-
 struct Transform
 {
 	Vec translation{};
-	Vec scale{ 1.f, 1.f, 1.f };
 	Vec rotation{};
+	Vec scale{ 1.f, 1.f, 1.f };
+
+	Transform() = default;
+	Transform(const Vec& t, const Vec& r = Vec::zero(), const Vec& s = Vec::zero())
+		: translation{ t }, rotation{ r }, scale{ s } {};
 
 	glm::mat4 mat4() const { return makeMatrix(rotation, scale, translation); }
 
@@ -196,6 +201,10 @@ public:
 	Vector2D operator/(const Vector2D& other) { return Vector2D{ x / other.x, y / other.y }; }
 	friend bool operator==(const Vector2D& lh, const Vector2D& rh) { return lh.x == rh.x && lh.y == rh.y; }
 	friend bool operator!=(const Vector2D& lh, const Vector2D& rh) { return !(lh == rh); }
+#ifdef GLM_VERSION
+	Vector2D<T>(const glm::vec2& g) : x{ g.x }, y{ g.y } {};
+	operator glm::vec2() const { return glm::vec2(x, y); }
+#endif
 };
 
 class VectorInt

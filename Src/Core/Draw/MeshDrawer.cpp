@@ -96,17 +96,17 @@ namespace EngineCore
 			//FakeScaleTest082
 			if (mesh->useFakeScale) 
 			{
-				Material::MeshPushConstants push{};
+				ShaderPushConstants::MeshPushConstants push{};
 				push.transform = fakeScaleOffsets.mat4();
-				material->writePushConstantsForMesh(commandBuffer, push);
+				material->writePushConstants(commandBuffer, push);
 			} 
 			else 
 			{
 				// NON-TEST CODE!
-				Material::MeshPushConstants push{};
+				ShaderPushConstants::MeshPushConstants push{};
 				push.transform = mesh->getTransform().mat4();
 				push.normalMatrix = glm::transpose(glm::inverse(push.transform));
-				material->writePushConstantsForMesh(commandBuffer, push);
+				material->writePushConstants(commandBuffer, push);
 			}
 
 			// record mesh draw command
@@ -130,4 +130,4 @@ namespace EngineCore
 		return matOut;
 	}
 
-} // namespace
+}

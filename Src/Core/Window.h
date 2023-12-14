@@ -40,6 +40,8 @@ namespace EngineCore
 		// middleman function for recording glfw mouse position updates
 		static void mousePosCallbackHandler(GLFWwindow* window, double x, double y);
 
+		static void mouseButtonCallbackHandler(GLFWwindow* window, int button, int action, int mods);
+
 		// mouse/keyboard events
 		InputSystem input{ this };
 
@@ -58,4 +60,4 @@ namespace EngineCore
 		std::string wndName;
 	};
 
-} // namespace
+}

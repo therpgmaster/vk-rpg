@@ -28,48 +28,51 @@ public:
 	float vFOV = 45.f;
 	float aspectRatio = 1.333f;
 
-	void setFOVh(const float& deg) { vFOV = (float)Transform::degToRad((float)deg); }
-
-	glm::mat4 getProjectionMatrix_legacy() 
-	{
-		/*
-		float left = -aspectRatio;
-		float right = aspectRatio;
-		float top = -1.f;
-		float bottom = 1.f;
-
-		float Xdelta = right - left;
-		float Ydelta = top - bottom;
-		float Zdelta = farPlane - nearPlane;
-
-		glm::mat4 mat{0.f};
-		mat[0][0] = nearPlane * 2.f / Xdelta;
-		mat[1][1] = nearPlane * 2.f / Ydelta;
-		mat[2][0] = (right + left) / Xdelta; // note: negate Z
-		mat[2][1] = (top + bottom) / Ydelta;
-		mat[2][2] = -(farPlane + nearPlane) / Zdelta;
-		mat[2][3] = -1.f;
-		mat[3][2] = (-2.f * nearPlane * farPlane) / Zdelta;
-		return mat;
-		*/
-
-		// lve: up = -Y,  right = +X,  forward = +Z
-		const float tanHalfFovy = tan(vFOV / 2.f);
-		float x = 1.f / (aspectRatio * tanHalfFovy);
-		float y = 1.f / (tanHalfFovy);
-		float z = farPlane / (farPlane - nearPlane);
-		float w = -(farPlane * nearPlane) / (farPlane - nearPlane);
-
-		glm::mat4 lveMat
-		{
-			x,   0.f, 0.f, 0.f,
-			0.f, y,   0.f, 0.f,
-			0.f, 0.f, z,   1.f,
-			0.f, 0.f, w,   0.f,
-		};
-
-		return lveMat;
+	void setFOVh(const float& deg) 
+	{ 
+		vFOV = (float)Transform::degToRad((float)deg); 
 	}
+
+	//glm::mat4 getProjectionMatrix_legacy() 
+	//{
+	//	/*
+	//	float left = -aspectRatio;
+	//	float right = aspectRatio;
+	//	float top = -1.f;
+	//	float bottom = 1.f;
+	//
+	//	float Xdelta = right - left;
+	//	float Ydelta = top - bottom;
+	//	float Zdelta = farPlane - nearPlane;
+	//
+	//	glm::mat4 mat{0.f};
+	//	mat[0][0] = nearPlane * 2.f / Xdelta;
+	//	mat[1][1] = nearPlane * 2.f / Ydelta;
+	//	mat[2][0] = (right + left) / Xdelta; // note: negate Z
+	//	mat[2][1] = (top + bottom) / Ydelta;
+	//	mat[2][2] = -(farPlane + nearPlane) / Zdelta;
+	//	mat[2][3] = -1.f;
+	//	mat[3][2] = (-2.f * nearPlane * farPlane) / Zdelta;
+	//	return mat;
+	//	*/
+	//
+	//	// lve: up = -Y,  right = +X,  forward = +Z
+	//	const float tanHalfFovy = tan(vFOV / 2.f);
+	//	float x = 1.f / (aspectRatio * tanHalfFovy);
+	//	float y = 1.f / (tanHalfFovy);
+	//	float z = farPlane / (farPlane - nearPlane);
+	//	float w = -(farPlane * nearPlane) / (farPlane - nearPlane);
+	//
+	//	glm::mat4 lveMat
+	//	{
+	//		x,   0.f, 0.f, 0.f,
+	//		0.f, y,   0.f, 0.f,
+	//		0.f, 0.f, z,   1.f,
+	//		0.f, 0.f, w,   0.f,
+	//	};
+	//
+	//	return lveMat;
+	//}
 
 	// returns a 3D projection matrix, consistent with a certain free and open source program "B"
 	glm::mat4 getProjectionMatrix() 
@@ -131,78 +134,78 @@ public:
 		return viewMatrix;
 	}
 
-	glm::mat4 getProjectionMatrixAlt()
-	{
-		const float n = nearPlane;
-		const float f = farPlane;
-		const float ar = aspectRatio;
-		const float vFovTanh = tan(vFOV / 2.f);
-
-		/*
-		glm::mat4 pmatrix{ 0.f };
-
-		// x scale
-		pmatrix[0][0] = 1.f / (ar * vFovTanh);
-		// y scale
-		pmatrix[1][1] = 1.f / (vFovTanh);
-		// z scale
-		pmatrix[2][2] = f / (f - n);
-		// w col 2
-		pmatrix[2][3] = 1.f;
-		// "forward" translation
-		pmatrix[3][2] = -(f * n) / (f - n);
-
-		glm::mat4 pmatrix - same as above, visualized
-		{
-			x,   0.f, 0.f, 0.f,
-			0.f, y,   0.f, 0.f,
-			0.f, 0.f, A,   1.f,
-			0.f, 0.f, B,   0.f,
-		};
-		*/
-
-		float x = 1.f / (ar * vFovTanh);
-		float y = 1.f / (vFovTanh);
-		float A = f / (f - n);
-		float B = -(f * n) / (f - n);
-
-		
-
-		glm::mat4 pmatrix
-		{
-			A,   0.f, 0.f, 1.f, // X
-			0.f, -x,  0.f, 0.f, // Y
-			0.f, 0.f, -y,  0.f, // Z
-			B,   0.f, 0.f, 0.f, // w
-		};
-
-		return pmatrix;
-	}
+	//glm::mat4 getProjectionMatrixAlt()
+	//{
+	//	const float n = nearPlane;
+	//	const float f = farPlane;
+	//	const float ar = aspectRatio;
+	//	const float vFovTanh = tan(vFOV / 2.f);
+	//
+	//	/*
+	//	glm::mat4 pmatrix{ 0.f };
+	//
+	//	// x scale
+	//	pmatrix[0][0] = 1.f / (ar * vFovTanh);
+	//	// y scale
+	//	pmatrix[1][1] = 1.f / (vFovTanh);
+	//	// z scale
+	//	pmatrix[2][2] = f / (f - n);
+	//	// w col 2
+	//	pmatrix[2][3] = 1.f;
+	//	// "forward" translation
+	//	pmatrix[3][2] = -(f * n) / (f - n);
+	//
+	//	glm::mat4 pmatrix - same as above, visualized
+	//	{
+	//		x,   0.f, 0.f, 0.f,
+	//		0.f, y,   0.f, 0.f,
+	//		0.f, 0.f, A,   1.f,
+	//		0.f, 0.f, B,   0.f,
+	//	};
+	//	*/
+	//
+	//	float x = 1.f / (ar * vFovTanh);
+	//	float y = 1.f / (vFovTanh);
+	//	float A = f / (f - n);
+	//	float B = -(f * n) / (f - n);
+	//
+	//	
+	//
+	//	glm::mat4 pmatrix
+	//	{
+	//		A,   0.f, 0.f, 1.f, // X
+	//		0.f, -x,  0.f, 0.f, // Y
+	//		0.f, 0.f, -y,  0.f, // Z
+	//		B,   0.f, 0.f, 0.f, // w
+	//	};
+	//
+	//	return pmatrix;
+	//}
 
 	// alternate projection method (flips an axis, mismatch with blender)
-	glm::mat4 getProjectionMatrixCookbook()
-	{
-		const float n = nearPlane;
-		const float f = farPlane;
-		const float a = aspectRatio;
-		float x = 1.f / tan(glm::radians(vFOV / 2.f));
-		//	"cookbook" projection 
-		glm::mat4 pmatrix =
-		{
-			x / a, 0.0f, 0.0f, 0.0f,
-			0.0f, x, 0.0f, 0.0f, /* [1][1]: x for y=down (default), -x for y=up */
-			0.0f, 0.0f, f / (n - f), -1.0f,
-			0.0f, 0.0f, -(f * n) / (f - n), 1.0f 
-		};
-		return pmatrix;
-	}
+	//glm::mat4 getProjectionMatrixCookbook()
+	//{
+	//	const float n = nearPlane;
+	//	const float f = farPlane;
+	//	const float a = aspectRatio;
+	//	float x = 1.f / tan(glm::radians(vFOV / 2.f));
+	//	//	"cookbook" projection 
+	//	glm::mat4 pmatrix =
+	//	{
+	//		x / a, 0.0f, 0.0f, 0.0f,
+	//		0.0f, x, 0.0f, 0.0f, /* [1][1]: x for y=down (default), -x for y=up */
+	//		0.0f, 0.0f, f / (n - f), -1.0f,
+	//		0.0f, 0.0f, -(f * n) / (f - n), 1.0f 
+	//	};
+	//	return pmatrix;
+	//}
 
 	void moveInPlaneXY(const Vector2D<double>& lookInput, const float& moveFwd, const float& moveRight, 
 					const float& moveUp, const bool& extraSpeed, const float& deltaTime)
 	{
 		float lookSpeed = 6.8f;
 		float moveSpeed = 27.f;
-		if (extraSpeed) { moveSpeed *= 15.f; }
+		if (extraSpeed) { moveSpeed *= 150.f; }//15.f;
 
 		float yawInput = lookInput.x != 0 ? lookInput.x / abs(lookInput.x) : 0.f; 
 		float pitchInput = lookInput.y != 0 ? lookInput.y / abs(lookInput.y) : 0.f;

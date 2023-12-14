@@ -59,21 +59,15 @@ namespace EngineCore
 	public:
 		InputSystem(EngineWindow* window);
 
-	private:
-		EngineWindow* parentWindow;
-		std::vector<KeyBinding> bindings;
-		std::vector<InputAxis> axisValues;
-		Vector2D<double> mousePosition = { 0.f };
-		Vector2D<double> mouseDelta = { 0.f };
-
-	public:
 		//void keyPressedCallback(const int& key, const int& scancode, const int& action, const int& mods);
 		void mousePosUpdatedCallback(const double& x, const double& y);
 
 		//	returns the axis index if the binding is an axis input
-		uint32_t addBinding(KeyBinding binding, const std::string& newAxisName = "NONE");
+		uint32_t addBinding(KeyBinding binding, const std::string& newAxisName);
 		// add another binding to an existing axis
 		void addBinding(KeyBinding binding, const uint32_t& axisIndex);
+
+
 		float getAxisValue(const uint32_t& index);
 		void setAxisValue(const uint32_t& index, const float& v);
 		void resetInputValues();
@@ -83,8 +77,15 @@ namespace EngineCore
 		// disables the system cursor, allowing for raw mouse input (use capture=false to release)
 		void captureMouseCursor(const bool& capture = true);
 
-		Vector2D<double> getMouseDelta() { return mouseDelta; }
+		const Vector2D<double>& getMouseDelta() const { return mouseDelta; }
+		const Vector2D<double>& getMousePosition() const { return mousePosition; }
 
+	private:
+		EngineWindow* parentWindow;
+		std::vector<KeyBinding> bindings;
+		std::vector<InputAxis> axisValues;
+		Vector2D<double> mousePosition = { 0.f };
+		Vector2D<double> mouseDelta = { 0.f };
 	};
 
-} // namespace
+}

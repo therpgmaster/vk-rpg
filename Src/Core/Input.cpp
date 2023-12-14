@@ -50,10 +50,8 @@ namespace EngineCore
 
 	uint32_t InputSystem::addBinding(KeyBinding binding, const std::string& newAxisName)
 	{
-		std::string axisName = newAxisName;
 		uint32_t axisIndex = static_cast<uint32_t>(axisValues.size());
-		if (newAxisName == "NONE") { axisName = "Axis_" + axisIndex; }
-		axisValues.push_back(InputAxis(axisName)); // add input axis
+		axisValues.push_back(InputAxis(newAxisName)); // add input axis
 		binding.axisIndex = axisIndex;
 		bindings.push_back(binding); // add binding
 		return axisIndex;
@@ -61,15 +59,9 @@ namespace EngineCore
 
 	void InputSystem::addBinding(KeyBinding binding, const uint32_t& axisIndex) 
 	{
-		if (axisValues.empty() || axisIndex >= axisValues.size()) 
-		{ 
-			addBinding(binding); // specified axis does not exist, create one
-		}
-		else 
-		{
-			binding.axisIndex = axisIndex;
-			bindings.push_back(binding);
-		}
+		assert(axisValues.size() > axisIndex);
+		binding.axisIndex = axisIndex;
+		bindings.push_back(binding);
 	}
 
 	float InputSystem::getAxisValue(const uint32_t& index)
@@ -113,9 +105,7 @@ namespace EngineCore
 	{
 		if (bindings.empty() || axisValues.empty()) { return; }
 
-		std::vector<uint32_t> unpressed;
-
-		for (auto& binding : bindings) 
+		for (auto& binding : bindings)
 		{
 			int32_t key = binding.getKey();
 			if (key <= -1 || binding.axisIndex <= -1) { continue; }
@@ -128,4 +118,4 @@ namespace EngineCore
 		for (auto& a : axisValues) { a.applyInfluences(); }
 	}
 
-} // namespace
+}

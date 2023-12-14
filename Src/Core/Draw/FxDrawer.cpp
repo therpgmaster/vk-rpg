@@ -32,7 +32,7 @@ namespace EngineCore
 
 		// setup material for the fullscreen shaders (no mesh)
 		ShaderFilePaths fullscreenShader(makePath("Shaders/fullscreen.vert.spv"), makePath("Shaders/fullscreen.frag.spv"));
-		MaterialCreateInfo fullscreenInfo(fullscreenShader, layouts, VK_SAMPLE_COUNT_1_BIT, renderpass);
+		MaterialCreateInfo fullscreenInfo(fullscreenShader, layouts, VK_SAMPLE_COUNT_1_BIT, renderpass, 0);
 		fullscreenInfo.shadingProperties.useVertexInput = false;
 		fullscreenInfo.shadingProperties.enableDepth = false;
 		fullscreenInfo.shadingProperties.cullModeFlags = VK_CULL_MODE_NONE;
@@ -43,7 +43,7 @@ namespace EngineCore
 		builder.loadFromFile(makePath("Meshes/teapot.obj"));
 		mesh = std::make_unique<Primitive>(device, builder);
 		ShaderFilePaths shader(makePath("Shaders/fx_test.vert.spv"), makePath("Shaders/fx_test.frag.spv"));
-		mesh->setMaterial(MaterialCreateInfo(shader, layouts, VK_SAMPLE_COUNT_1_BIT, renderpass));
+		mesh->setMaterial(MaterialCreateInfo(shader, layouts, VK_SAMPLE_COUNT_1_BIT, renderpass, sizeof(ShaderPushConstants::MeshPushConstants)));
 		mesh->getTransform().scale = 5.f;
 		mesh->getTransform().translation = Vec{ -80.f, 0.f, 0.f };
 		
@@ -70,9 +70,9 @@ namespace EngineCore
 		auto material = mesh->getMaterial();
 		material->bindToCommandBuffer(cmdBuffer);
 		
-		Material::MeshPushConstants push{};
+		ShaderPushConstants::MeshPushConstants push{};
 		push.transform = mesh->getTransform().mat4();
-		material->writePushConstantsForMesh(cmdBuffer, push);
+		material->writePushConstants(cmdBuffer, push);
 
 		mesh->bind(cmdBuffer);
 		mesh->draw(cmdBuffer);
@@ -89,4 +89,4 @@ namespace EngineCore
 
 
 
-} // namespace
+}

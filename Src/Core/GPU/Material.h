@@ -55,14 +55,16 @@ namespace EngineCore
 	// holds all properties needed to create a material object (used to generate a pipeline config)
 	struct MaterialCreateInfo 
 	{
-		MaterialCreateInfo(const ShaderFilePaths& shadersIn, const std::vector<VkDescriptorSetLayout>& setLayoutsIn, VkSampleCountFlagBits samples, VkRenderPass rp)
-			: shaderPaths(shadersIn), descriptorSetLayouts(setLayoutsIn), samples{ samples }, renderpass{ rp } {};
+		MaterialCreateInfo(const ShaderFilePaths& shadersIn, const std::vector<VkDescriptorSetLayout>& setLayoutsIn, 
+						VkSampleCountFlagBits samples, VkRenderPass rp, size_t pushConstSize)
+			: shaderPaths(shadersIn), descriptorSetLayouts(setLayoutsIn), samples{ samples }, renderpass{ rp }, pushConstSize{ pushConstSize } {};
 			 
 		MaterialShadingProperties shadingProperties{};
 		ShaderFilePaths shaderPaths; // SPIR-V shaders
 		std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
 		VkSampleCountFlagBits samples;
 		VkRenderPass renderpass;
+		size_t pushConstSize;
 	};
 
 	// a material object is mainly an abstraction around a VkPipeline
@@ -71,7 +73,6 @@ namespace EngineCore
 	public:
 		Material(const MaterialCreateInfo& matInfo, EngineDevice& device);
 		~Material();
-
 		Material(const Material&) = delete;
 		Material& operator=(const Material&) = delete;
 
@@ -80,13 +81,12 @@ namespace EngineCore
 		// binds this material's pipeline to the specified command buffer
 		void bindToCommandBuffer(VkCommandBuffer commandBuffer) const;
 
-		struct MeshPushConstants
-		{ 
-			glm::mat4 transform{1.f};
-			glm::mat4 normalMatrix{1.f};
-		};
-		// updates push constant values for a mesh-specific pipeline (only mesh materials)
-		void writePushConstantsForMesh(VkCommandBuffer commandBuffer, MeshPushConstants& data) const;
+		template<typename T>
+		void writePushConstants(VkCommandBuffer cmdBuf, T& data) const 
+		{
+			vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+								sizeof(T), (void*)&data);
+		}
 
 		void setMaterialSpecificDescriptorSet(const std::shared_ptr<DescriptorSet>& set) { descriptorSet = set; }
 		DescriptorSet* getMaterialSpecificDescriptorSet() { return descriptorSet.get(); }
@@ -111,4 +111,21 @@ namespace EngineCore
 
 	};
 
-} // namespace
+	namespace ShaderPushConstants 
+	{
+		struct MeshPushConstants
+		{
+			glm::mat4 transform{1.f};
+			glm::mat4 normalMatrix{1.f};
+		};
+
+		struct InterfaceElementPushConstants
+		{
+			glm::vec2 position;
+			glm::vec2 size;
+			float timeSinceHover;
+			float timeSinceClick;
+		};
+	}
+
+}

@@ -30,6 +30,7 @@ namespace EngineCore
 		// subscribe to glfw input events
 		glfwSetKeyCallback(getGLFWwindow(), keypressCallbackHandler);
 		glfwSetCursorPosCallback(getGLFWwindow(), mousePosCallbackHandler);
+		glfwSetMouseButtonCallback(getGLFWwindow(), mouseButtonCallbackHandler);
 	}
 
 	void EngineWindow::createWindowSurface(VkInstance inst, VkSurfaceKHR* surface)
@@ -65,4 +66,10 @@ namespace EngineCore
 		wp->input.mousePosUpdatedCallback(x, y); // send updated mouse coords to input system
 	}
 
-} // namespace
+	void EngineWindow::mouseButtonCallbackHandler(GLFWwindow* window, int button, int action, int mods) 
+	{
+		if (action != GLFW_PRESS) { return; }
+
+	}
+
+}

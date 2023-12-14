@@ -3,6 +3,7 @@
 #include "Core/GPU/Material.h"
 #include "Core/GPU/Buffer.h"
 #include "Core/GPU/Image.h"
+#include "Core/Types/CommonTypes.h"
 
 #include <stdexcept>
 #include <array>
@@ -16,8 +17,6 @@
 
 namespace EngineCore
 {
-	EngineApplication::EngineApplication() {}
-
 	void EngineApplication::startExecution()
 	{
 		renderer.swapchainCreatedCallback = std::bind(&EngineApplication::onSwapchainCreated, this);
@@ -44,22 +43,7 @@ namespace EngineCore
 		// window pending close, wait for GPU
 		vkDeviceWaitIdle(device.device());
 	}
-
-	void EngineApplication::setupDrawers() 
-	{
-		meshDrawer = std::make_unique<MeshDrawer>(device);
-		skyDrawer = std::make_unique<SkyDrawer>(std::vector<VkDescriptorSetLayout>{ dset.getLayout() },
-												device, renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass());
-		fxDrawer = std::make_unique<FxDrawer>(device, renderer.getFxPassInputImageViews(), renderer.getFxPassInputDepthImageViews(),
-												dset, renderer.getFxRenderpass().getRenderpass());
-	}
-
-	void EngineApplication::onSwapchainCreated()
-	{
-		// fxDrawer uses swapchain image count, so it must be recreated together with the swapchain
-		setupDrawers();
-	}
-
+	
 	void EngineApplication::loadDemoMeshes()
 	{
 		Primitive::MeshBuilder builder{};
@@ -82,11 +66,40 @@ namespace EngineCore
 		loadedMeshes.back()->getTransform().scale = 10.f;
 	}
 
+	void EngineApplication::setupDescriptors() 
+	{
+		// demo textures
+		marsTexture = std::make_unique<Image>(device, makePath("Textures/mars6k_v2.jpg"));
+		spaceTexture = std::make_unique<Image>(device, makePath("Textures/space.png"));
+
+		UBO_Struct ubo1{};
+		ubo1.add(uelem::mat4); // MVP matrix
+		//ubo1.add(std::vector{ uelem::scalar, uelem::vec3 }, 2); // test
+		dset.addUBO(ubo1, device);
+		// as the demo textures will never be overwritten from the CPU, only one buffer is needed for each, so the view can simply be duplicated
+		ImageArrayDescriptor demoTextureArray{};
+		demoTextureArray.addImage(std::vector<VkImageView>(EngineSwapChain::MAX_FRAMES_IN_FLIGHT, marsTexture->getView()));
+		demoTextureArray.addImage(std::vector<VkImageView>(EngineSwapChain::MAX_FRAMES_IN_FLIGHT, spaceTexture->getView()));
+		dset.addImageArray(demoTextureArray);
+		dset.addSampler(marsTexture->sampler);
+		dset.finalize();
+	}
+
+	void EngineApplication::setupDrawers() 
+	{
+		meshDrawer = std::make_unique<MeshDrawer>(device);
+		skyDrawer = std::make_unique<SkyDrawer>(std::vector<VkDescriptorSetLayout>{ dset.getLayout() },
+												device, renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass());
+		fxDrawer = std::make_unique<FxDrawer>(device, renderer.getFxPassInputImageViews(), renderer.getFxPassInputDepthImageViews(),
+												dset, renderer.getFxRenderpass().getRenderpass());
+		uiDrawer = std::make_unique<InterfaceDrawer>(device, renderer.getBaseRenderpass().getRenderpass(), renderSettings.sampleCountMSAA);
+	}
+
 	void EngineApplication::setupDefaultInputs()
 	{
 		InputSystem& inputSys = window.input;
 
-		inputSys.captureMouseCursor(true);
+		inputSys.captureMouseCursor(false);
 
 		// add binding for forwards (and backwards) movement
 		uint32_t fwdAxisIndex = inputSys.addBinding(KeyBinding(GLFW_KEY_W, 1.f), "kbForwardAxis");
@@ -100,6 +113,38 @@ namespace EngineCore
 		// move faster
 		inputSys.addBinding(KeyBinding(GLFW_KEY_LEFT_SHIFT, 1.f), "kbFasterAxis");
 	}
+
+	void EngineApplication::applyDemoMaterials()
+	{
+		// create demo material
+		ShaderFilePaths shader(makePath("Shaders/shader.vert.spv"), makePath("Shaders/shader.frag.spv"));
+		loadedMeshes[0]->setMaterial(MaterialCreateInfo(shader, std::vector<VkDescriptorSetLayout>{ dset.getLayout() }, 
+										renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass(), sizeof(ShaderPushConstants::MeshPushConstants)));
+
+
+		// descriptor set must be initialized before using its layout
+		UBO_Struct ubo_g{};
+		ubo_g.add(uelem::vec3); // camera position
+		ubo_g.add(uelem::vec3); // light position
+		ubo_g.add(uelem::scalar); // roughness
+		auto matSet = std::make_shared<DescriptorSet>(device);
+		matSet->addUBO(ubo_g, device);
+		matSet->finalize(); // create material-specific descriptor set
+
+		ShaderFilePaths shader2(makePath("Shaders/shader.vert.spv"), makePath("Shaders/pbr.frag.spv")); 
+		// TODO: materials should automatically include the layout of their own set (if present) on construct!!!
+		loadedMeshes[1]->setMaterial(MaterialCreateInfo(shader2, std::vector<VkDescriptorSetLayout>{ dset.getLayout(), matSet->getLayout() },
+										renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass(), sizeof(ShaderPushConstants::MeshPushConstants)));
+		loadedMeshes[1]->getMaterial()->setMaterialSpecificDescriptorSet(matSet); // TODO: better way to create material-specific sets
+
+	}
+
+	void EngineApplication::onSwapchainCreated()
+	{
+		// fxDrawer uses swapchain image count, so it must be recreated together with the swapchain
+		setupDrawers();
+	}
+
 	/*
 	void EngineApplication::simulateDistanceByScale(const StaticMesh& mesh, const Transform& cameraTransform)
 	{
@@ -173,49 +218,6 @@ namespace EngineCore
 		}
 	}
 
-	void EngineApplication::setupDescriptors() 
-	{
-		// demo textures
-		marsTexture = std::make_unique<Image>(device, makePath("Textures/mars6k_v2.jpg"));
-		spaceTexture = std::make_unique<Image>(device, makePath("Textures/space.png"));
-
-		UBO_Struct ubo1{};
-		ubo1.add(uelem::mat4); // MVP matrix
-		//ubo1.add(std::vector{ uelem::scalar, uelem::vec3 }, 2); // test
-		dset.addUBO(ubo1, device);
-		// as the demo textures will never be overwritten from the CPU, only one buffer is needed for each, so the view can simply be duplicated
-		ImageArrayDescriptor demoTextureArray{};
-		demoTextureArray.addImage(std::vector<VkImageView>(EngineSwapChain::MAX_FRAMES_IN_FLIGHT, marsTexture->getView()));
-		demoTextureArray.addImage(std::vector<VkImageView>(EngineSwapChain::MAX_FRAMES_IN_FLIGHT, spaceTexture->getView()));
-		dset.addImageArray(demoTextureArray);
-		dset.addSampler(marsTexture->sampler);
-		dset.finalize();
-	}
-
-	void EngineApplication::applyDemoMaterials()
-	{
-		// create demo material
-		ShaderFilePaths shader(makePath("Shaders/shader.vert.spv"), makePath("Shaders/shader.frag.spv"));
-		loadedMeshes[0]->setMaterial(MaterialCreateInfo(shader, std::vector<VkDescriptorSetLayout>{ dset.getLayout() }, 
-											renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass()));
-
-
-		// descriptor set must be initialized before using its layout
-		UBO_Struct ubo_g{};
-		ubo_g.add(uelem::vec3); // camera position
-		ubo_g.add(uelem::vec3); // light position
-		ubo_g.add(uelem::scalar); // roughness
-		auto matSet = std::make_shared<DescriptorSet>(device);
-		matSet->addUBO(ubo_g, device);
-		matSet->finalize(); // create material-specific descriptor set
-
-		ShaderFilePaths shader2(makePath("Shaders/shader.vert.spv"), makePath("Shaders/pbr.frag.spv")); 
-		// TODO: materials should automatically include the layout of their own set (if present) on construct!!!
-		loadedMeshes[1]->setMaterial(MaterialCreateInfo(shader2, std::vector<VkDescriptorSetLayout>{ dset.getLayout(), matSet->getLayout() },
-											renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass()));
-		loadedMeshes[1]->getMaterial()->setMaterialSpecificDescriptorSet(matSet); // TODO: better way to create material-specific sets
-
-	}
 
 	void EngineApplication::render() 
 	{
@@ -224,31 +226,8 @@ namespace EngineCore
 			const uint32_t frameIndex = renderer.getFrameIndex(); // current framebuffer index
 			engineClock.measureFrameDelta(frameIndex);
 
-			glm::mat4 viewMatrix = camera.getViewMatrix(true);
-
-			glm::mat4 pvm{ 1.f };
-			pvm = camera.getProjectionMatrix() * Camera::getWorldBasisMatrix() * viewMatrix;
-			dset.writeUBOMember(0, pvm, UBO_Layout::ElementAccessor{ 0, 0, 0 }, frameIndex);
-
-			//float testScalar1 = 1.f - std::sin(engineClock.getElapsed() * 10.f);
-			//float testScalar2 = 1.f - std::sin(engineClock.getElapsed() * 50.f);
-			//dset.writeUBOMember(0, testScalar1, UBO_Layout::ElementAccessor{ 1, 0, 0 }, frameIndex);
-			//dset.writeUBOMember(0, testScalar2, UBO_Layout::ElementAccessor{ 1, 1, 0 }, frameIndex);
-
-			//applyWorldOriginOffset(camera.transform); //(TODO: ) experimental
-
-			// update material-specific descriptors on mesh
-			glm::vec3 camPos = camera.transform.translation;
-
-
-			//lightPos.y -= 5.f * engineClock.getDelta();
-			float roughness = 0.1f;
-			auto& mesh1dset = *loadedMeshes[1]->getMaterial()->getMaterialSpecificDescriptorSet();
-			mesh1dset.writeUBOMember(0, camPos, UBO_Layout::ElementAccessor{ 0, 0, 0 }, frameIndex);
-			mesh1dset.writeUBOMember(0, lightPos, UBO_Layout::ElementAccessor{ 1, 0, 0 }, frameIndex);
-			mesh1dset.writeUBOMember(0, roughness, UBO_Layout::ElementAccessor{ 2, 0, 0 }, frameIndex);
-
 			moveCamera();
+			updateDescriptors(frameIndex);
 
 			renderer.beginRenderpassBase(commandBuffer);
 
@@ -257,10 +236,12 @@ namespace EngineCore
 			//simulateDistanceByScale(*loadedMeshes[1].get(), camera.transform); //FakeScaleTest082
 			// render meshes
 			meshDrawer->renderMeshes(commandBuffer, loadedMeshes, engineClock.getDelta(), engineClock.getElapsed(), frameIndex,
-										dset.getDescriptorSet(frameIndex), viewMatrix * camera.getProjectionMatrix(), simDistOffsets); //FakeScaleTest082
+										dset.getDescriptorSet(frameIndex), camera.getViewMatrix(true) * camera.getProjectionMatrix(), simDistOffsets); //FakeScaleTest082
+
+
+			uiDrawer->render(commandBuffer, window.input.getMousePosition(), renderer.getSwapchainExtent());
 
 			renderer.endRenderpass();
-
 
 			fxDrawer->render(commandBuffer, renderer);
 
@@ -271,12 +252,41 @@ namespace EngineCore
 
 	void EngineApplication::moveCamera()
 	{
-		auto lookInput = window.input.getMouseDelta();
 		auto mf = window.input.getAxisValue(0);
 		auto mr = window.input.getAxisValue(1);
 		auto mu = window.input.getAxisValue(2);
 		auto xs = window.input.getAxisValue(3) > 0 ? true : false;
-		camera.moveInPlaneXY(lookInput, mf, mr, mu, xs, engineClock.getDelta());
+		camera.moveInPlaneXY(window.input.getMouseDelta(), mf, mr, mu, xs, engineClock.getDelta());
+		// test
+		Transform t = camera.transform;
+		t.translation.x += 5.f;
+		loadedMeshes.back()->setTransform(t);
 	}
+
+	void EngineApplication::updateDescriptors(uint32_t frameIndex)
+	{
+		glm::mat4 pvm{ 1.f };
+		pvm = camera.getProjectionMatrix() * Camera::getWorldBasisMatrix() * camera.getViewMatrix(true);
+		dset.writeUBOMember(0, pvm, UBO_Layout::ElementAccessor{ 0, 0, 0 }, frameIndex);
+
+		//float testScalar1 = 1.f - std::sin(engineClock.getElapsed() * 10.f);
+		//float testScalar2 = 1.f - std::sin(engineClock.getElapsed() * 50.f);
+		//dset.writeUBOMember(0, testScalar1, UBO_Layout::ElementAccessor{ 1, 0, 0 }, frameIndex);
+		//dset.writeUBOMember(0, testScalar2, UBO_Layout::ElementAccessor{ 1, 1, 0 }, frameIndex);
+
+		//applyWorldOriginOffset(camera.transform); //(TODO: ) experimental
+
+		// update material-specific descriptors on mesh
+		glm::vec3 camPos = camera.transform.translation;
+
+
+		//lightPos.y -= 5.f * engineClock.getDelta();
+		float roughness = 0.1f;
+		auto& mesh1dset = *loadedMeshes[1]->getMaterial()->getMaterialSpecificDescriptorSet();
+		mesh1dset.writeUBOMember(0, camPos, UBO_Layout::ElementAccessor{ 0, 0, 0 }, frameIndex);
+		mesh1dset.writeUBOMember(0, lightPos, UBO_Layout::ElementAccessor{ 1, 0, 0 }, frameIndex);
+		mesh1dset.writeUBOMember(0, roughness, UBO_Layout::ElementAccessor{ 2, 0, 0 }, frameIndex);
+	}
+
 
 } 

@@ -14,7 +14,6 @@ namespace EngineCore
 	Material::Material(const MaterialCreateInfo& matInfo, EngineDevice& device)
 		: materialCreateInfo{ matInfo }, device{ device }
 	{
-		if (matInfo.descriptorSetLayouts.empty()) { throw std::runtime_error("material error, no descriptor set layouts specified"); }
 		if (matInfo.renderpass == VK_NULL_HANDLE) { throw std::runtime_error("material error, material must be assigned a valid renderpass"); }
 		createPipelineLayout();
 		createPipeline();
@@ -165,18 +164,18 @@ namespace EngineCore
 		VkPushConstantRange pushConstRange{};
 		pushConstRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 		pushConstRange.offset = 0;
-		pushConstRange.size = sizeof(MeshPushConstants);
+		pushConstRange.size = materialCreateInfo.pushConstSize;
 
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		const uint32_t setLayoutCount = static_cast<uint32_t>(materialCreateInfo.descriptorSetLayouts.size());
 		assert(setLayoutCount < 5 && "some GPUs may only support 4 (max) descriptor sets per pipeline");
 		pipelineLayoutInfo.setLayoutCount = setLayoutCount;
-		pipelineLayoutInfo.pSetLayouts = materialCreateInfo.descriptorSetLayouts.data();
-		pipelineLayoutInfo.pushConstantRangeCount = 1;
-		pipelineLayoutInfo.pPushConstantRanges = &pushConstRange;
+		pipelineLayoutInfo.pSetLayouts = setLayoutCount ? materialCreateInfo.descriptorSetLayouts.data() : nullptr;
+		pipelineLayoutInfo.pushConstantRangeCount = pushConstRange.size ? 1 : 0;
+		pipelineLayoutInfo.pPushConstantRanges = pushConstRange.size ? &pushConstRange : nullptr;
 		if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
-		{ throw std::runtime_error("material error, failed to create pipeline layout"); }
+			{ throw std::runtime_error("material error, failed to create pipeline layout"); }
 	}
 
 	void Material::createPipeline()
@@ -252,15 +251,7 @@ namespace EngineCore
 
 		// create vulkan pipeline object
 		if (vkCreateGraphicsPipelines(device.device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS)
-		{ throw std::runtime_error("failed to create pipeline"); }
+			{ throw std::runtime_error("failed to create pipeline"); }
 	}
 
-	void Material::writePushConstantsForMesh(VkCommandBuffer commandBuffer, MeshPushConstants& data) const
-	{
-		// the command buffer must be in the recording state for the command to succeed
-		vkCmdPushConstants(commandBuffer, pipelineLayout,
-			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-			0, sizeof(MeshPushConstants), (void*) &data);
-	}
-
-} // namespace
+}

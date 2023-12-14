@@ -20,7 +20,7 @@ namespace EngineCore
 		skyMesh->getTransform().scale = 100000.f;
 
 		// create unique material for sky, set to render backfaces, since it will be viewed from inside
-		MaterialCreateInfo matInfo(skyShaders, setLayouts, samples, renderpass);
+		MaterialCreateInfo matInfo(skyShaders, setLayouts, samples, renderpass, sizeof(ShaderPushConstants::MeshPushConstants));
 		matInfo.shadingProperties.cullModeFlags = VK_CULL_MODE_NONE;
 		skyMesh->setMaterial(matInfo);
 	}
@@ -41,13 +41,13 @@ namespace EngineCore
 		// sky mesh position should be centered at the observer (camera) at all times
 		Transform otf{}; // zero init transform, only translation is relevant
 		otf.translation = observerPosition;
-		Material::MeshPushConstants push{};
+		ShaderPushConstants::MeshPushConstants push{};
 		push.transform = otf.mat4();
-		skyMat->writePushConstantsForMesh(commandBuffer, push);
+		skyMat->writePushConstants(commandBuffer, push);
 
 		// record draw command for sky mesh
 		sky.bind(commandBuffer);
 		sky.draw(commandBuffer);
 	}
 
-} // namespace
+}

@@ -6,6 +6,7 @@
 #include "Core/Draw/MeshDrawer.h"
 #include "Core/Draw/SkyDrawer.h"
 #include "Core/Draw/FxDrawer.h"
+#include "Core/Draw/InterfaceDrawer.h"
 
 #include "Core/Physics/PhysicsScene.h"
 
@@ -64,17 +65,16 @@ namespace EngineCore
 	class EngineApplication
 	{
 	public:
+		EngineApplication() = default;
+		~EngineApplication() = default;
+		EngineApplication(const EngineApplication&) = delete;
+		EngineApplication& operator=(const EngineApplication&) = delete;
+
 		// hardcoded window size in pixels
 		static constexpr int WIDTH = 1920; //1100;
 		static constexpr int HEIGHT = 1080; //720;
 
 		EngineRenderSettings renderSettings{};
-		
-		EngineApplication();
-		~EngineApplication() = default;
-
-		EngineApplication(const EngineApplication&) = delete;
-		EngineApplication& operator=(const EngineApplication&) = delete;
 
 		// begins the main window event loop
 		void startExecution();
@@ -96,6 +96,7 @@ namespace EngineCore
 		void setupDrawers();
 		void onSwapchainCreated();
 		void render();
+		void updateDescriptors(uint32_t frameIndex);
 		void moveCamera();
 
 		// engine application window (creates a window using GLFW) 
@@ -120,10 +121,11 @@ namespace EngineCore
 		std::unique_ptr<MeshDrawer> meshDrawer;
 		std::unique_ptr<SkyDrawer> skyDrawer;
 		std::unique_ptr<FxDrawer> fxDrawer;
+		std::unique_ptr<InterfaceDrawer> uiDrawer;
 
 		// TODO: this is strictly temporary
 		glm::vec3 lightPos{ -20.f, 100.f, 45.f };
 
 	};
 
-} // namespace
+}
