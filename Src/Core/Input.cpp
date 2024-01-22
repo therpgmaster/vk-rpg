@@ -8,11 +8,17 @@
 namespace EngineCore
 {
 
-	KeyBinding::KeyBinding(const uint32_t& bindKey, const float& axisInfluence)
+	KeyBinding::KeyBinding(uint32_t bindKey, float axisInfluence)
 	{
 		bindingType = InputBindingType::Axis;
 		key = bindKey;
 		axisValueInfluence = axisInfluence;
+	}
+
+	KeyBinding::KeyBinding(uint32_t bindKey)
+	{
+		bindingType = InputBindingType::Event;
+		key = bindKey;
 	}
 
 	void KeyBinding::execute(InputSystem& context)
@@ -62,6 +68,11 @@ namespace EngineCore
 		assert(axisValues.size() > axisIndex);
 		binding.axisIndex = axisIndex;
 		bindings.push_back(binding);
+	}
+
+	uint32_t InputSystem::addBinding(KeyBinding binding)
+	{
+		return 0; // TODO: continue implementing event bindings
 	}
 
 	float InputSystem::getAxisValue(const uint32_t& index)

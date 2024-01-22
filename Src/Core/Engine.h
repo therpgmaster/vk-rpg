@@ -98,6 +98,11 @@ namespace EngineCore
 		void render();
 		void updateDescriptors(uint32_t frameIndex);
 		void moveCamera();
+		glm::mat4 getProjectionViewMatrix(bool inverse = false);
+
+		void testMoveObjectWithMouse();
+		glm::vec3 getMouseMove3DLocationTest_legacy(float planeDistance, float dist2 = 1.f);
+		glm::vec3 unproject(glm::vec3 point);
 
 		// engine application window (creates a window using GLFW) 
 		EngineWindow window{ WIDTH, HEIGHT, "Vulkan Window" };
@@ -125,6 +130,9 @@ namespace EngineCore
 
 		// TODO: this is strictly temporary
 		glm::vec3 lightPos{ -20.f, 100.f, 45.f };
+
+		Vec mouseMoveObjectOriginalLocation;
+		bool movingObjectWithCursor = true;
 
 	};
 

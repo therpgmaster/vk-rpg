@@ -22,8 +22,10 @@ namespace EngineCore
 		renderer.swapchainCreatedCallback = std::bind(&EngineApplication::onSwapchainCreated, this);
 
 		// temporary single-camera setup
-		camera = Camera(45.f, 0.8f, 10.f);
-		camera.transform.translation.x = -8.f;
+		camera = Camera(45.f, 4.f, 6000.f);
+		camera.transform.rotation = glm::vec3(0.f, 0.f, 0.f);
+		camera.transform.translation = glm::vec3(0.f, 0.f, 150.f);
+		//camera.transform.translation.x = -8.f;
 
 		loadDemoMeshes();
 		setupDescriptors();
@@ -59,11 +61,19 @@ namespace EngineCore
 		loadedMeshes[1]->getTransform().scale = 1.f;*/
 
 		
-		Primitive::MeshBuilder builder2{};
-		builder2.loadFromFile(makePath("Meshes/6star.obj")); // TODO: hardcoded path
-		loadedMeshes.push_back(std::make_unique<Primitive>(device, builder2));
-		loadedMeshes.back()->getTransform().translation = Vec{ 20.f, 0.f, 0.f };
-		loadedMeshes.back()->getTransform().scale = 10.f;
+		uint32_t i = 0;
+		while (i < 100)
+		{
+			Primitive::MeshBuilder builder2{};
+			builder2.loadFromFile(makePath("Meshes/6star.obj")); // TODO: hardcoded path
+			loadedMeshes.push_back(std::make_unique<Primitive>(device, builder2));
+			loadedMeshes.back()->getTransform().translation = Vec{ 17.f + (i * 17.f), 0.f, 0.f};
+			loadedMeshes.back()->getTransform().scale = 30.f;
+			
+			i++;
+		}
+		
+		
 	}
 
 	void EngineApplication::setupDescriptors() 
@@ -112,6 +122,14 @@ namespace EngineCore
 		inputSys.addBinding(KeyBinding(GLFW_KEY_F, -1.f), upAxisIndex);
 		// move faster
 		inputSys.addBinding(KeyBinding(GLFW_KEY_LEFT_SHIFT, 1.f), "kbFasterAxis");
+		// test value, used for something
+		uint32_t testAxisIndex = inputSys.addBinding(KeyBinding(GLFW_KEY_UP, 1.f), "kbUpAxis");
+		inputSys.addBinding(KeyBinding(GLFW_KEY_DOWN, -1.f), testAxisIndex);
+		// g, x, y, and z -buttons
+		inputSys.addBinding(KeyBinding(GLFW_KEY_G, 1.f), "kbG-keyAxis");
+		inputSys.addBinding(KeyBinding(GLFW_KEY_X, 1.f), "kbX-keyAxis");
+		inputSys.addBinding(KeyBinding(GLFW_KEY_Y, 1.f), "kbY-keyAxis");
+		inputSys.addBinding(KeyBinding(GLFW_KEY_Z, 1.f), "kbZ-keyAxis");
 	}
 
 	void EngineApplication::applyDemoMaterials()
@@ -131,17 +149,22 @@ namespace EngineCore
 		matSet->addUBO(ubo_g, device);
 		matSet->finalize(); // create material-specific descriptor set
 
-		ShaderFilePaths shader2(makePath("Shaders/shader.vert.spv"), makePath("Shaders/pbr.frag.spv")); 
-		// TODO: materials should automatically include the layout of their own set (if present) on construct!!!
-		loadedMeshes[1]->setMaterial(MaterialCreateInfo(shader2, std::vector<VkDescriptorSetLayout>{ dset.getLayout(), matSet->getLayout() },
-										renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass(), sizeof(ShaderPushConstants::MeshPushConstants)));
-		loadedMeshes[1]->getMaterial()->setMaterialSpecificDescriptorSet(matSet); // TODO: better way to create material-specific sets
+		ShaderFilePaths shader2(makePath("Shaders/shader.vert.spv"), makePath("Shaders/pbr.frag.spv"));
+		for (size_t i = 1; i < loadedMeshes.size(); i++)
+		{
+			// TODO: materials should automatically include the layout of their own set (if present) on construct!!!
+			MaterialCreateInfo matInfo(shader2, std::vector<VkDescriptorSetLayout>{ dset.getLayout(), matSet->getLayout() },
+						renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass(), sizeof(ShaderPushConstants::MeshPushConstants));
+			matInfo.shadingProperties.cullModeFlags = VK_CULL_MODE_NONE;
+			loadedMeshes[i]->setMaterial(matInfo);
+			loadedMeshes[i]->getMaterial()->setMaterialSpecificDescriptorSet(matSet); // TODO: better way to create material-specific sets
+		}
 
 	}
 
 	void EngineApplication::onSwapchainCreated()
 	{
-		// fxDrawer uses swapchain image count, so it must be recreated together with the swapchain
+		// fxDrawer uses swapchain image count, since it samples from the swapchain attachments, so it must be recreated together with the swapchain
 		setupDrawers();
 	}
 
@@ -227,6 +250,14 @@ namespace EngineCore
 			engineClock.measureFrameDelta(frameIndex);
 
 			moveCamera();
+			camera.testValue += window.input.getAxisValue(4) * engineClock.getDelta() * 2.f;
+			//skyDrawer->skyMeshScale = camera.testValue;
+			//loadedMeshes.back()->getTransform().translation.x += window.input.getAxisValue(4) * engineClock.getDelta() * 1.f;
+			//std::cout << "\nx: " << loadedMeshes.back()->getTransform().translation.x;
+			//std::cout << "\ntest value: " << camera.testValue;
+
+			testMoveObjectWithMouse();
+			
 			updateDescriptors(frameIndex);
 
 			renderer.beginRenderpassBase(commandBuffer);
@@ -236,17 +267,17 @@ namespace EngineCore
 			//simulateDistanceByScale(*loadedMeshes[1].get(), camera.transform); //FakeScaleTest082
 			// render meshes
 			meshDrawer->renderMeshes(commandBuffer, loadedMeshes, engineClock.getDelta(), engineClock.getElapsed(), frameIndex,
-										dset.getDescriptorSet(frameIndex), camera.getViewMatrix(true) * camera.getProjectionMatrix(), simDistOffsets); //FakeScaleTest082
+										dset.getDescriptorSet(frameIndex), getProjectionViewMatrix(), simDistOffsets); //FakeScaleTest082
 
 
-			uiDrawer->render(commandBuffer, window.input.getMousePosition(), renderer.getSwapchainExtent());
+			//uiDrawer->render(commandBuffer, window.input.getMousePosition(), renderer.getSwapchainExtent());  // render test UI
 
 			renderer.endRenderpass();
 
 			fxDrawer->render(commandBuffer, renderer);
 
 			renderer.endFrame(); // submit command buffer
-			camera.aspectRatio = renderer.getAspectRatio();
+			camera.setAspectRatio(renderer.getSwapchainAspectRatio());
 		}
 	}
 
@@ -256,17 +287,102 @@ namespace EngineCore
 		auto mr = window.input.getAxisValue(1);
 		auto mu = window.input.getAxisValue(2);
 		auto xs = window.input.getAxisValue(3) > 0 ? true : false;
-		camera.moveInPlaneXY(window.input.getMouseDelta(), mf, mr, mu, xs, engineClock.getDelta());
-		// test
-		Transform t = camera.transform;
-		t.translation.x += 5.f;
-		loadedMeshes.back()->setTransform(t);
+		auto lookInput = window.input.getMouseDelta();
+		//lookInput = { 0.0, 0.0 }; // this disables mouse camera movement!
+		camera.moveInPlaneXY(lookInput, mf, mr, mu, xs, engineClock.getDelta());
+		// move with camera, temporary
+		//Transform t = camera.transform;
+		//t.translation.x += 5.f;
+		//loadedMeshes.back()->setTransform(t);
+	}
+
+	glm::mat4 EngineApplication::getProjectionViewMatrix(bool inverse)
+	{
+		glm::mat4 projectionMatrix = camera.getProjectionMatrix();
+		if (!inverse)
+		{
+			return projectionMatrix * camera.blenderToVulkanMatrix1 * camera.blenderToVulkanMatrix2 * camera.getViewMatrix();
+		}
+		else
+		{
+			return glm::inverse(camera.getViewMatrix()) * glm::inverse(camera.blenderToVulkanMatrix1) * glm::inverse(camera.blenderToVulkanMatrix2) * glm::inverse(projectionMatrix);
+		}
+	}
+
+	void EngineApplication::testMoveObjectWithMouse()
+	{
+		// query inputs, this should only be used in 3D editor viewport
+		if (window.input.getAxisValue(5) < .1)
+		{ 
+			movingObjectWithCursor = false;
+			return;
+		}
+
+		if (!movingObjectWithCursor)
+		{
+			mouseMoveObjectOriginalLocation = loadedMeshes.back()->getTransform().translation;
+			movingObjectWithCursor = true;
+		}
+
+		auto mx = ((window.input.getMousePosition().x / window.getExtent().width) * 2) - 1;
+		auto my = ((window.input.getMousePosition().y / window.getExtent().height) * 2) - 1;
+		//auto p = pvm_inv * glm::vec4(mx, my, planeDistance, 1);
+		auto nearPoint = unproject(glm::vec3(mx, my, 0));
+		auto farPoint = unproject(glm::vec3(mx, my, 1));
+		auto p = nearPoint + (glm::normalize(nearPoint - farPoint) * Vec::distance(mouseMoveObjectOriginalLocation, camera.transform.translation)) * -1.f;
+
+		//std::cout << "\nnear plane distance: " << Vec::distance(camera.transform.translation, nearPoint);
+		//std::cout << "\nfar plane distance: " << Vec::distance(camera.transform.translation, farPoint);
+
+		std::cout << "\n\nfinal x:" << p.x << " y:" << p.y << " z:" << p.z<<
+			" distance from camera : " << Vec::distance(p, camera.transform.translation);
+
+		bool moveX = window.input.getAxisValue(6) > .1;
+		bool moveY = window.input.getAxisValue(7) > .1;
+		bool moveZ = window.input.getAxisValue(8) > .1;
+		bool moveAll = !moveX && !moveY && !moveZ;
+
+		p.x = moveAll || moveX ? p.x : mouseMoveObjectOriginalLocation.x;
+		p.y = moveAll || moveY ? p.y : mouseMoveObjectOriginalLocation.y;
+		p.z = moveAll || moveZ ? p.z : mouseMoveObjectOriginalLocation.z;
+		loadedMeshes.back()->setTranslation(p);
+	}
+
+	glm::vec3 EngineApplication::unproject(glm::vec3 point)
+	{
+		glm::vec4 v = getProjectionViewMatrix(true) * glm::vec4(point.x, point.y, point.z, 1);
+		return glm::vec3(v.x, v.y, v.z) / v.w;
+		//auto pvm_inv = glm::inverse(camera.getViewMatrix()) * basis conversion matrix * glm::inverse(camera.getProjectionMatrix());
+	}
+
+	glm::vec3 EngineApplication::getMouseMove3DLocationTest_legacy(float planeDistance, float dist2)
+	{
+		auto viewportExtent = window.getExtent();
+		/*auto x = window.input.getMousePosition().x - viewportExtent.width;
+		auto y = window.input.getMousePosition().y - viewportExtent.height;
+		glm::vec4 pos = { x / (viewportExtent.width/2), y / (viewportExtent.height/2), 0, 0};
+		//
+		// using view-projection matrix, ideally should only be calculated once per frame
+		pos = glm::inverse((camera.getProjectionMatrix() * basis conversion matrix * camera.getViewMatrix())*planeDistance) * pos;
+		return { pos.x, pos.y, pos.z };*/
+
+		//void homogeneous_to_world(vec3 & world, const vec3 & homogeneous, const mat4 & projection, const mat4 & view)
+		auto x = ((window.input.getMousePosition().x / viewportExtent.width) * 2) - 1;
+		auto y = ((window.input.getMousePosition().y / viewportExtent.height) * 2) - 1;
+
+		//glm::mat4 pvm_inv = glm::inverse(camera.getProjectionMatrix(camera.nearPlane+100, camera.nearPlane+400) * basis conversion matrix * camera.getViewMatrix());
+		glm::mat4 pvm_inv; // this line replaces the commented-out one above to indicate that we now use a common wrapper function to get the matrices instead, not real code
+		glm::vec4 w = pvm_inv * glm::vec4(x, y, planeDistance, dist2);
+		auto world = glm::vec3(w) * (1.0f / w.w);
+		//std::cout << "\n\nmouse x:" << x << " y:" << y;
+		return { world.x, world.y, world.z };
 	}
 
 	void EngineApplication::updateDescriptors(uint32_t frameIndex)
 	{
 		glm::mat4 pvm{ 1.f };
-		pvm = camera.getProjectionMatrix() * Camera::getWorldBasisMatrix() * camera.getViewMatrix(true);
+		//pvm = camera.getProjectionMatrix() * basis conversion matrix * camera.getViewMatrix();
+		pvm = getProjectionViewMatrix();
 		dset.writeUBOMember(0, pvm, UBO_Layout::ElementAccessor{ 0, 0, 0 }, frameIndex);
 
 		//float testScalar1 = 1.f - std::sin(engineClock.getElapsed() * 10.f);

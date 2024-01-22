@@ -19,7 +19,9 @@ namespace EngineCore
 	{
 	public:
 		// axis binding constructor
-		KeyBinding(const uint32_t& bindKey, const float& axisInfluence = 1.f);
+		KeyBinding(uint32_t bindKey, float axisInfluence = 1.f);
+		// event binding constructor
+		KeyBinding(uint32_t bindKey);
 		
 		const int32_t& getKey() { return key; }
 		const InputBindingType& getBindingType() { return bindingType; }
@@ -66,6 +68,8 @@ namespace EngineCore
 		uint32_t addBinding(KeyBinding binding, const std::string& newAxisName);
 		// add another binding to an existing axis
 		void addBinding(KeyBinding binding, const uint32_t& axisIndex);
+		// add an event binding, returns a binding index
+		uint32_t addBinding(KeyBinding binding);
 
 
 		float getAxisValue(const uint32_t& index);
@@ -84,6 +88,7 @@ namespace EngineCore
 		EngineWindow* parentWindow;
 		std::vector<KeyBinding> bindings;
 		std::vector<InputAxis> axisValues;
+		std::vector<bool> eventBindings;
 		Vector2D<double> mousePosition = { 0.f };
 		Vector2D<double> mouseDelta = { 0.f };
 	};
