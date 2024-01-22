@@ -21,7 +21,7 @@ vulkan-1.lib
 glfw3.lib
 ```
 
-Let the linker to ignore these default libraries (Windows):
+Set the linker to ignore these default libraries (Windows):
 ```
 MSVCRT
 libucrtd
