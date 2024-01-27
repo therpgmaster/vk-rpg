@@ -1,4 +1,3 @@
-# vk-rpg
 
 ## Build configuration
 #### Headers
