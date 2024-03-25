@@ -7,15 +7,21 @@ layout(location = 2) in vec3 fragNormalWS;
 layout(location = 3) in vec2 fragUV;
 
 layout (location = 0) out vec4 outColor;
-layout (depth_any) out float gl_FragDepth;
 
 
-layout(set = 0, binding = 1) uniform texture2D textures[2];
-layout(set = 0, binding = 2) uniform sampler _sampler;
-
-
-void main() 
+layout(std430, set = 0, binding = 0) uniform UBO1 
 {
-	gl_FragDepth = 0.9999999;
-	outColor = texture(sampler2D(textures[1], _sampler), fragUV);
+	mat4 projectionViewMatrix;
+} ubo1;
+
+layout(push_constant) uniform Push
+{
+	mat4 transform;
+	vec4 color;
+} push;
+
+
+void main()
+{
+	outColor = push.color;
 }

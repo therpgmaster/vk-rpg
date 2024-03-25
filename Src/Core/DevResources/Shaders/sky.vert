@@ -26,12 +26,32 @@ layout(push_constant) uniform Push
 	mat4 normalMatrix;
 } push;
 
+mat4 blenderToVulkan1()
+{
+	mat4 m = mat4(0.0);
+	m[2][0] = 1.f;
+	m[1][1] = 1.f;
+	m[0][2] = 1.f;
+	m[3][3] = 1.f;
+	return m;
+}
+mat4 blenderToVulkan2()
+{
+	mat4 m = mat4(0.0);
+	m[0][0] = 1.f;
+	m[2][1] = -1.f;
+	m[1][2] = -1.f;
+	m[3][3] = 1.f;
+	return m;
+}
+
 
 void main() 
 {
-  gl_Position = ubo1.projectionViewMatrix * push.transform * position;
-  fragNormalWS = normalize(mat3(push.normalMatrix) * normal);
-  fragPositionWS = vec4(push.transform * position).xyz;
-  fragUV = uv;
-  fragColor = vec3(0.0, 0.0, 0.0); // hardcoded
+	gl_Position = ubo1.projectionViewMatrix * push.transform * position;
+	//gl_Position.z = gl_Position.w - 0.001;
+	fragNormalWS = normalize(mat3(push.normalMatrix) * normal);
+	fragPositionWS = vec4( push.transform * position).xyz;
+	fragUV = uv;
+	fragColor = vec3(0.0, 0.0, 0.0); // hardcoded
 }
