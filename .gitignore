@@ -52,3 +52,4 @@ out/
 # Blender project files
 *.blend
 *.blend1
+Src/Core/Dependencies/json-rpg/json-rpg.cpp
