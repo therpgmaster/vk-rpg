@@ -2,6 +2,7 @@
 
 #include "Core/GPU/Device.h"
 #include "Core/Camera.h"
+#include "Core/WorldSystem/World.h"
 
 #include <stdexcept>
 #include <array>
@@ -16,49 +17,57 @@
 
 namespace EngineCore
 {
-	void MeshDrawer::renderMeshes(VkCommandBuffer commandBuffer, std::vector<std::unique_ptr<Primitive>>& meshes,
+	void MeshDrawer::renderMeshes(VkCommandBuffer commandBuffer, WorldSystem::World& world,
 			const float& deltaTimeSeconds, float time, uint32_t frameIndex, VkDescriptorSet sceneGlobalDescriptorSet, 
 			const glm::mat4& viewMatrix, Transform& fakeScaleOffsets) //FakeScaleTest082
 	{
-		for (uint32_t i = 0; i < meshes.size(); i++)
+		auto& sectors = world.getLoadedSectors();
+		for (uint32_t s = 0; s < sectors.size(); s++)
 		{
-			auto& mesh = meshes[i];
-			auto material = mesh->getMaterial();
+			auto& sector = sectors[s];
+			auto& meshes = sector->primitives;
+			if (sector->isCulled)
+				continue;
 
-			material->bindToCommandBuffer(commandBuffer); // bind material-specific shading pipeline
-
-			std::vector<VkDescriptorSet> sets;
-			// scene global descriptor set
-			sets.push_back(sceneGlobalDescriptorSet);
-
-			if (auto* matSet = material->getMaterialSpecificDescriptorSet())
+			for (uint32_t i = 0; i < meshes.size(); i++)
 			{
-				// bind material-specific descriptor set
-				sets.push_back(matSet->getDescriptorSet(frameIndex));
-			}
+				auto& mesh = meshes[i];
+				auto material = mesh->getMaterial();
 
-			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, material->getPipelineLayout(),
-				0, sets.size(), sets.data(), 0, nullptr);
+				material->bindToCommandBuffer(commandBuffer); // bind material-specific shading pipeline
 
-			// spin 3D primitive - demo
-			if (i == 0) 
-			{
-				float spinRate = 0.1f;
-				mesh->getTransform().rotation.z = glm::mod(mesh->getTransform().rotation.z + spinRate * deltaTimeSeconds, glm::two_pi<float>());
-				mesh->getTransform().rotation.y = glm::mod(mesh->getTransform().rotation.y + spinRate * 0.8f * deltaTimeSeconds, glm::two_pi<float>());
-				continue; // TODO: this skips rendering the first mesh!!!
-			}
+				std::vector<VkDescriptorSet> sets;
+				// scene global descriptor set
+				sets.push_back(sceneGlobalDescriptorSet);
 
-			// spin 3D primitive - demo
-			if (i == 1)
-			{
+				if (auto* matSet = material->getMaterialSpecificDescriptorSet())
+				{
+					// bind material-specific descriptor set
+					sets.push_back(matSet->getDescriptorSet(frameIndex));
+				}
 
-				float spinRate = 0.3f;
-				mesh->getTransform().rotation.z = glm::mod(mesh->getTransform().rotation.z + spinRate * deltaTimeSeconds, glm::two_pi<float>());
-			}
-			
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, material->getPipelineLayout(),
+										0, sets.size(), sets.data(), 0, nullptr);
 
-			/*if (camera != nullptr)
+				// spin 3D primitive - demo
+				if (s == 1 && i == 0)
+				{
+					float spinRate = 0.1f;
+					mesh->getTransform().rotation.z = glm::mod(mesh->getTransform().rotation.z + spinRate * deltaTimeSeconds, glm::two_pi<float>());
+					mesh->getTransform().rotation.y = glm::mod(mesh->getTransform().rotation.y + spinRate * 0.8f * deltaTimeSeconds, glm::two_pi<float>());
+					continue; // TODO: this skips rendering the first mesh!!!
+				}
+
+				// spin 3D primitive - demo
+				if (s == 1 && i == 1)
+				{
+
+					float spinRate = 0.3f;
+					mesh->getTransform().rotation.z = glm::mod(mesh->getTransform().rotation.z + spinRate * deltaTimeSeconds, glm::two_pi<float>());
+				}
+				
+
+				/*if (camera != nullptr)
 			{
 				// camera rotation
 				//camera->transform.rotation += glm::vec3{ -x, y, 0.0 } * 0.03f;
@@ -82,37 +91,35 @@ namespace EngineCore
 			else 
 			{ throw std::runtime_error("renderEngineObjects null camera pointer"); }*/
 
-			/* view matrix and mesh transform matrix
-			glm::mat4 projectionMatrix = camera->getProjectionMatrix();
-			glm::mat4 viewMatrix = camera->getViewMatrix(true);
-			glm::mat4 meshMatrix =  mesh.transform.mat4();
-			glm::mat4 worldMatrix = Camera::getWorldBasisMatrix();
-			// old way of sending matrices to gpu
+
+				/* old way of sending matrices to gpu
 			push.transform = projectionMatrix * worldMatrix * viewMatrix * meshMatrix;
 			vkCmdPushConstants(commandBuffer, mesh->getMaterial()->getPipelineLayout(),
 				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
 				0, sizeof(SimplePushConstantData), &push);*/
 
-			//FakeScaleTest082
-			if (mesh->useFakeScale) 
-			{
-				ShaderPushConstants::MeshPushConstants push{};
-				push.transform = fakeScaleOffsets.mat4();
-				material->writePushConstants(commandBuffer, push);
-			} 
-			else 
-			{
-				// NON-TEST CODE!
-				ShaderPushConstants::MeshPushConstants push{};
-				push.transform = mesh->getTransform().mat4();
-				push.normalMatrix = glm::transpose(glm::inverse(push.transform));
-				material->writePushConstants(commandBuffer, push);
-			}
+				//FakeScaleTest082
+				if (mesh->useFakeScale) 
+				{
+					ShaderPushConstants::MeshPushConstants push{};
+					push.transform = fakeScaleOffsets.mat4();
+					material->writePushConstants(commandBuffer, push);
+				} 
+				else 
+				{
+					// NON-TEST CODE!
+					ShaderPushConstants::MeshPushConstants push{};
+					push.transform = mesh->getTransform().mat4();
+					push.normalMatrix = glm::transpose(glm::inverse(push.transform));
+					material->writePushConstants(commandBuffer, push);
+				}
 
-			// record mesh draw command
-			mesh->bind(commandBuffer);
-			mesh->draw(commandBuffer);
+				// record mesh draw command
+				mesh->bind(commandBuffer);
+				mesh->draw(commandBuffer);
+			}
 		}
+
 	}
 
 	glm::mat4 MeshDrawer::lerpMat4(float t, glm::mat4 matA, glm::mat4 matB) 

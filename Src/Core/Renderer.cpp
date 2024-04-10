@@ -185,6 +185,6 @@ namespace EngineCore
 
 	//VkRenderPass Renderer::getSwapchainRenderPass() const { return swapchain->getRenderPass(); }
 
-	float Renderer::getAspectRatio() const { return swapchain->getExtentAspectRatio(); }
+	float Renderer::getSwapchainAspectRatio() const { return swapchain->getExtentAspectRatio(); }
 
 }

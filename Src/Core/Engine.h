@@ -3,11 +3,8 @@
 #include "Core/GPU/Device.h"
 #include "Core/Renderer.h"
 #include "Core/Camera.h"
-#include "Core/Draw/MeshDrawer.h"
-#include "Core/Draw/SkyDrawer.h"
-#include "Core/Draw/FxDrawer.h"
-#include "Core/Draw/InterfaceDrawer.h"
-
+#include "Core/Draw/DrawIncludes.h"
+#include "Core/WorldSystem/World.h"
 #include "Core/Physics/PhysicsScene.h"
 
 #include <memory>
@@ -18,46 +15,12 @@
 #include "Core/Types/CommonTypes.h"
 #include "Core/GPU/Descriptors.h"
 #include "Core/EngineSettings.h"
+#include "Core/EngineClock.h"
 
 class SharedMaterialsPool;
 
 namespace EngineCore
 {
-	class EngineClock
-	{
-		using clock = std::chrono::steady_clock;
-		using timePoint = clock::time_point;
-		const double deltaMax = 0.2;
-	public:
-		EngineClock() : start{ clock::now() } {};
-		void measureFrameDelta(const uint32_t& currentframeIndex) 
-		{
-			if (currentframeIndex != lastFrameIndex) /* new frame started? */
-			{
-				if (lastFrameIndex != 959) /* update delta (except on very first frame) */
-				{
-					std::chrono::duration<double, std::milli> ms = clock::now() - frameDeltaStart;
-					frameDelta = std::min(deltaMax, (ms.count() / 1000.0)); 
-				}
-				// reset timer
-				frameDeltaStart = clock::now();
-				lastFrameIndex = currentframeIndex;
-			}
-		}
-		const double& getDelta() const { return frameDelta; }
-		uint32_t getFps() const { return (uint32_t) 1 / frameDelta; }
-		double getElapsed() const
-		{
-			std::chrono::duration<double, std::milli> ms = clock::now() - start;
-			return ms.count() / 1000.0;
-		}
-	private:
-		timePoint start;
-		timePoint frameDeltaStart;
-		double frameDelta = 0.01;
-		uint32_t lastFrameIndex = 959;
-	};
-
 	class Primitive;
 	class Image;
 
@@ -86,7 +49,7 @@ namespace EngineCore
 		//static double ddist(const Vector3D<double>& a, const Vector3D<double>& b);
 		//static Vector3D<double> ddir(const Vector3D<double>& a, const Vector3D<double>& b);
 
-		void applyWorldOriginOffset(Transform& cameraTransform);
+		//void applyWorldOriginOffset(Transform& cameraTransform);
 
 	private:
 		void loadDemoMeshes();
@@ -123,16 +86,20 @@ namespace EngineCore
 		Camera camera;
 		std::unique_ptr<Image> spaceTexture;
 		std::unique_ptr<Image> marsTexture;
+
 		std::unique_ptr<MeshDrawer> meshDrawer;
 		std::unique_ptr<SkyDrawer> skyDrawer;
 		std::unique_ptr<FxDrawer> fxDrawer;
 		std::unique_ptr<InterfaceDrawer> uiDrawer;
+		std::unique_ptr<DebugDrawer> debugDrawer;
 
 		// TODO: this is strictly temporary
 		glm::vec3 lightPos{ -20.f, 100.f, 45.f };
 
 		Vec mouseMoveObjectOriginalLocation;
 		bool movingObjectWithCursor = true;
+
+		WorldSystem::World world{ device };
 
 	};
 

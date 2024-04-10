@@ -6,8 +6,7 @@
 
 namespace EngineCore
 {
-	SkyDrawer::SkyDrawer(const std::vector<VkDescriptorSetLayout>& setLayouts,
-									EngineDevice& device, VkSampleCountFlagBits samples, VkRenderPass renderpass)
+	SkyDrawer::SkyDrawer(EngineDevice& device, DescriptorSet& defaultSet, VkRenderPass renderpass, VkSampleCountFlagBits samples)
 	{
 		// TODO: hardcoded paths
 		const std::string meshPath = makePath("Meshes/skysphere.obj");
@@ -17,10 +16,11 @@ namespace EngineCore
 		Primitive::MeshBuilder builder{};
 		builder.loadFromFile(meshPath);
 		skyMesh = std::make_unique<Primitive>(device, builder);
-		skyMesh->getTransform().scale = 100000.f;
+		skyMesh->getTransform().scale = 50.f;
 
 		// create unique material for sky, set to render backfaces, since it will be viewed from inside
-		MaterialCreateInfo matInfo(skyShaders, setLayouts, samples, renderpass, sizeof(ShaderPushConstants::MeshPushConstants));
+		auto layouts = std::vector<VkDescriptorSetLayout>{ defaultSet.getLayout() };
+		MaterialCreateInfo matInfo(skyShaders, layouts, samples, renderpass, sizeof(ShaderPushConstants::MeshPushConstants));
 		matInfo.shadingProperties.cullModeFlags = VK_CULL_MODE_NONE;
 		skyMesh->setMaterial(matInfo);
 	}
@@ -41,6 +41,7 @@ namespace EngineCore
 		// sky mesh position should be centered at the observer (camera) at all times
 		Transform otf{}; // zero init transform, only translation is relevant
 		otf.translation = observerPosition;
+		otf.scale = { skyMeshScale, skyMeshScale, skyMeshScale };
 		ShaderPushConstants::MeshPushConstants push{};
 		push.transform = otf.mat4();
 		skyMat->writePushConstants(commandBuffer, push);

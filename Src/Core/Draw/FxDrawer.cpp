@@ -7,10 +7,9 @@
 
 namespace EngineCore
 {
-	FxDrawer::FxDrawer(EngineDevice& device,
+	FxDrawer::FxDrawer(EngineDevice& device, DescriptorSet& defaultSet, VkRenderPass renderpass,
 						const std::vector<VkImageView>& inputImageViews, 
-						const std::vector<VkImageView>& inputDepthImageViews, 
-						DescriptorSet& defaultSet, VkRenderPass renderpass)
+						const std::vector<VkImageView>& inputDepthImageViews)
 		: device{ device }, defaultSet{ defaultSet }
 	{
 		// initialized as normal

@@ -15,10 +15,8 @@ namespace EngineCore
 	class FxDrawer
 	{
 	public:
-		FxDrawer(EngineDevice& device, 
-				const std::vector<VkImageView>& inputImageViews, 
-				const std::vector<VkImageView>& inputDepthImageViews, 
-				DescriptorSet& defaultSet, VkRenderPass renderpass);
+		FxDrawer(EngineDevice& device, DescriptorSet& defaultSet, VkRenderPass renderpass,
+				const std::vector<VkImageView>& inputImageViews, const std::vector<VkImageView>& inputDepthImageViews);
 
 		void render(VkCommandBuffer cmdBuffer, Renderer& renderer);
 

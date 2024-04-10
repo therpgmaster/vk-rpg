@@ -58,7 +58,7 @@ namespace EngineCore
 		MaterialCreateInfo(const ShaderFilePaths& shadersIn, const std::vector<VkDescriptorSetLayout>& setLayoutsIn, 
 						VkSampleCountFlagBits samples, VkRenderPass rp, size_t pushConstSize)
 			: shaderPaths(shadersIn), descriptorSetLayouts(setLayoutsIn), samples{ samples }, renderpass{ rp }, pushConstSize{ pushConstSize } {};
-			 
+		// the shading properties hold common settings like backface culling and polygon fill mode
 		MaterialShadingProperties shadingProperties{};
 		ShaderFilePaths shaderPaths; // SPIR-V shaders
 		std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
@@ -125,6 +125,12 @@ namespace EngineCore
 			glm::vec2 size;
 			float timeSinceHover;
 			float timeSinceClick;
+		};
+
+		struct DebugPrimitivePushConstants
+		{
+			glm::mat4 transform{ 1.f };
+			glm::vec4 color;
 		};
 	}
 

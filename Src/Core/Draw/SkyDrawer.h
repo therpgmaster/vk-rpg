@@ -10,18 +10,21 @@ namespace EngineCore
 {
 	class EngineDevice;
 	class Primitive;
+	class DescriptorSet;
 
 	class SkyDrawer 
 	{
 	public:
-		SkyDrawer(const std::vector<VkDescriptorSetLayout>& setLayouts,
-						EngineDevice& device, VkSampleCountFlagBits samples, VkRenderPass renderpass);
+		SkyDrawer(EngineDevice& device, DescriptorSet& defaultSet, VkRenderPass renderpass, VkSampleCountFlagBits samples);
 
 		void renderSky(VkCommandBuffer commandBuffer, VkDescriptorSet sceneGlobalDescriptorSet, 
 						const glm::vec3& observerPosition);
 
+		float skyMeshScale = 1000.f * 10.f;
+
 	private:
 		std::unique_ptr<Primitive> skyMesh;
+		
 	};
 
 }

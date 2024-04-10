@@ -72,20 +72,21 @@ namespace EngineCore
 	{
 		float lookSpeed = 6.8f;
 		float moveSpeed = 30.f;
-		if (extraSpeed) { moveSpeed *= 80.f; }
+		//if (extraSpeed) { moveSpeed *= 80.f; }
+		if (extraSpeed) { moveSpeed *= 1500.f; }
 
 		float yawInput = lookInput.x != 0 ? lookInput.x / abs(lookInput.x) : 0.f;
 		float pitchInput = lookInput.y != 0 ? lookInput.y / abs(lookInput.y) : 0.f;
 		auto rotV = Vec{ 0.f, pitchInput, -yawInput };
 
-		//if (Vec::dot(rotV, rotV) > std::numeric_limits<float>::epsilon())
-		//{ transform.rotation += rotV.getNormalized() * lookSpeed * deltaTime; }
+		if (Vec::dot(rotV, rotV) > std::numeric_limits<float>::epsilon())
+		{ transform.rotation += rotV.getNormalized() * lookSpeed * deltaTime; }
 
 		// limit pitch values to exactly 85 degrees
-		//transform.rotation.y = glm::clamp(transform.rotation.y, 
-		//		(float)Transform::degToRad(-85.f), (float)Transform::degToRad(85.f));
+		transform.rotation.y = glm::clamp(transform.rotation.y, 
+				(float)Transform::degToRad(-85.f), (float)Transform::degToRad(85.f));
 		// prevent overflow from continous yawing
-		//transform.rotation.z = glm::mod(transform.rotation.z, glm::two_pi<float>());
+		transform.rotation.z = glm::mod(transform.rotation.z, glm::two_pi<float>());
 
 		const Vec forwardDir = transform.getForwardVector();
 		const Vec rightDir = Vec{ forwardDir.y, -forwardDir.x, 0.f };
@@ -102,7 +103,8 @@ namespace EngineCore
 		else if (moveUp < 0.f) { moveDir -= upDir; }
 
 		transform.translation += moveDir * moveSpeed * deltaTime;
-		std::cout << "\n" << "x:" << transform.translation.x << "y:" << transform.translation.y << "z:" << transform.translation.z;
+		//std::cout << "CAM: " << (Vec::distance(Vec(), transform.translation) / 100) / 1000 << "km\n";
+		//std::cout << "\n" << "x:" << transform.translation.x << "y:" << transform.translation.y << "z:" << transform.translation.z;
 	}
 
 	void Camera::moveInPlaneXYN(const Vector2D<double>& lookInput, const float& moveFwd, const float& moveRight, 

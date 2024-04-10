@@ -35,6 +35,7 @@ namespace EngineCore
 			std::vector<Vertex> vertices{};
 			std::vector<uint32_t> indices{};
 			void makeCubeMesh();
+			void makeCubeMeshWireframe();
 			void loadFromFile(const std::string& path);
 		};
 
@@ -59,6 +60,9 @@ namespace EngineCore
 
 		Transform& getTransform() { return transform; } // this should be changed to virtual, returning const
 		void setTransform(const Transform& t) { transform = t; }
+		void setTranslation(const Vec& t) { transform.translation = t; }
+
+		bool isPointInsideOOBB(const Vec& point);
 
 	private:
 		void createVertexBuffers(const std::vector<Vertex>& vertices);
@@ -75,5 +79,7 @@ namespace EngineCore
 		uint32_t indexCount;
 		bool hasIndexBuffer = false;
 
+		void generateOOBB(const std::vector<Vertex>& vertices);
+		Vec extent{};
 	};
 }

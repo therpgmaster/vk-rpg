@@ -3,7 +3,6 @@
 #include "Core/GPU/Material.h"
 #include "Core/GPU/Buffer.h"
 #include "Core/GPU/Image.h"
-#include "Core/Types/CommonTypes.h"
 
 #include <stdexcept>
 #include <array>
@@ -22,7 +21,7 @@ namespace EngineCore
 		renderer.swapchainCreatedCallback = std::bind(&EngineApplication::onSwapchainCreated, this);
 
 		// temporary single-camera setup
-		camera = Camera(45.f, 4.f, 6000.f);
+		camera = Camera(85.f, 10.f, 10000 * 100.f);
 		camera.transform.rotation = glm::vec3(0.f, 0.f, 0.f);
 		camera.transform.translation = glm::vec3(0.f, 0.f, 150.f);
 		//camera.transform.translation.x = -8.f;
@@ -48,11 +47,12 @@ namespace EngineCore
 	
 	void EngineApplication::loadDemoMeshes()
 	{
-		Primitive::MeshBuilder builder{};
-		builder.loadFromFile(makePath("Meshes/mars.obj")); // TODO: hardcoded path
-		loadedMeshes.push_back(std::make_unique<Primitive>(device, builder));
-		loadedMeshes.back()->getTransform().translation = Vec{300.f, 0.f, 0.f};
-		loadedMeshes.back()->getTransform().scale = 120.f;
+		// mars
+		//Primitive::MeshBuilder builder{};
+		//builder.loadFromFile(makePath("Meshes/mars.obj")); // TODO: hardcoded path
+		//loadedMeshes.push_back(std::make_unique<Primitive>(device, builder));
+		//loadedMeshes.back()->getTransform().translation = Vec{300.f, 0.f, 0.f};
+		//loadedMeshes.back()->getTransform().scale = 120.f;
 
 		/*builder.loadFromFile("G:/VulkanDev/VulkanEngine/Core/DevResources/Meshes/sphere.obj");
 		loadedMeshes.push_back(new Primitive(device, builder)); 
@@ -61,17 +61,7 @@ namespace EngineCore
 		loadedMeshes[1]->getTransform().scale = 1.f;*/
 
 		
-		uint32_t i = 0;
-		while (i < 100)
-		{
-			Primitive::MeshBuilder builder2{};
-			builder2.loadFromFile(makePath("Meshes/6star.obj")); // TODO: hardcoded path
-			loadedMeshes.push_back(std::make_unique<Primitive>(device, builder2));
-			loadedMeshes.back()->getTransform().translation = Vec{ 17.f + (i * 17.f), 0.f, 0.f};
-			loadedMeshes.back()->getTransform().scale = 30.f;
-			
-			i++;
-		}
+		// MOVED TO WORLD SECTOR SYSTEM
 		
 		
 	}
@@ -97,19 +87,22 @@ namespace EngineCore
 
 	void EngineApplication::setupDrawers() 
 	{
+		auto basePass = renderer.getBaseRenderpass().getRenderpass();
+		auto fxPass = renderer.getFxRenderpass().getRenderpass();
+
 		meshDrawer = std::make_unique<MeshDrawer>(device);
-		skyDrawer = std::make_unique<SkyDrawer>(std::vector<VkDescriptorSetLayout>{ dset.getLayout() },
-												device, renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass());
-		fxDrawer = std::make_unique<FxDrawer>(device, renderer.getFxPassInputImageViews(), renderer.getFxPassInputDepthImageViews(),
-												dset, renderer.getFxRenderpass().getRenderpass());
-		uiDrawer = std::make_unique<InterfaceDrawer>(device, renderer.getBaseRenderpass().getRenderpass(), renderSettings.sampleCountMSAA);
+		skyDrawer = std::make_unique<SkyDrawer>(device, dset, basePass, renderSettings.sampleCountMSAA);
+		fxDrawer = std::make_unique<FxDrawer>(device, dset, fxPass, renderer.getFxPassInputImageViews(), renderer.getFxPassInputDepthImageViews());
+		uiDrawer = std::make_unique<InterfaceDrawer>(device, basePass, renderSettings.sampleCountMSAA);
+		debugDrawer = std::make_unique<DebugDrawer>(device, dset, basePass, renderSettings.sampleCountMSAA);
+		//debugDrawer->addDebugBox(Vec(100.f), Vec::zero(), Vec(0.f, 0.f, .8f), 0.5f);
 	}
 
 	void EngineApplication::setupDefaultInputs()
 	{
 		InputSystem& inputSys = window.input;
 
-		inputSys.captureMouseCursor(false);
+		inputSys.captureMouseCursor(true);
 
 		// add binding for forwards (and backwards) movement
 		uint32_t fwdAxisIndex = inputSys.addBinding(KeyBinding(GLFW_KEY_W, 1.f), "kbForwardAxis");
@@ -134,6 +127,9 @@ namespace EngineCore
 
 	void EngineApplication::applyDemoMaterials()
 	{
+		/*
+		* MOVE TO WORLD SECTOR SYSTEM*/
+
 		// create demo material
 		ShaderFilePaths shader(makePath("Shaders/shader.vert.spv"), makePath("Shaders/shader.frag.spv"));
 		loadedMeshes[0]->setMaterial(MaterialCreateInfo(shader, std::vector<VkDescriptorSetLayout>{ dset.getLayout() }, 
@@ -159,6 +155,7 @@ namespace EngineCore
 			loadedMeshes[i]->setMaterial(matInfo);
 			loadedMeshes[i]->getMaterial()->setMaterialSpecificDescriptorSet(matSet); // TODO: better way to create material-specific sets
 		}
+		//*/
 
 	}
 
@@ -222,7 +219,7 @@ namespace EngineCore
 		return { k.x * f, k.y * f, k.z * f };
 	}
 		*/
-	void EngineApplication::applyWorldOriginOffset(Transform& cameraTransform)
+	/*void EngineApplication::applyWorldOriginOffset(Transform& cameraTransform)
 	{
 		const auto threshold = 250000.f;
 		auto& tft = cameraTransform.translation;
@@ -239,7 +236,7 @@ namespace EngineCore
 		{
 			for (auto& m : loadedMeshes) { m->getTransform().translation = m->getTransform().translation - nw; }
 		}
-	}
+	}*/
 
 
 	void EngineApplication::render() 
@@ -257,6 +254,11 @@ namespace EngineCore
 			//std::cout << "\ntest value: " << camera.testValue;
 
 			testMoveObjectWithMouse();
+
+			world.sectorUpdate(camera);
+			//std::cout << camera.transform.translation.x * 0.00001 << "\n";
+			debugDrawer->removeDebugBoxes();
+			debugDrawer->addDebugBox(Vec(world.getSectorSize()), world.getLocalSectorOriginAbsolute(), Vec(0.f, 0.f, .8f), 0.5f);
 			
 			updateDescriptors(frameIndex);
 
@@ -266,9 +268,10 @@ namespace EngineCore
 			skyDrawer->renderSky(commandBuffer, dset.getDescriptorSet(frameIndex), camera.transform.translation);
 			//simulateDistanceByScale(*loadedMeshes[1].get(), camera.transform); //FakeScaleTest082
 			// render meshes
-			meshDrawer->renderMeshes(commandBuffer, loadedMeshes, engineClock.getDelta(), engineClock.getElapsed(), frameIndex,
+			meshDrawer->renderMeshes(commandBuffer, world, engineClock.getDelta(), engineClock.getElapsed(), frameIndex,
 										dset.getDescriptorSet(frameIndex), getProjectionViewMatrix(), simDistOffsets); //FakeScaleTest082
 
+			debugDrawer->render(commandBuffer, renderer);
 
 			//uiDrawer->render(commandBuffer, window.input.getMousePosition(), renderer.getSwapchainExtent());  // render test UI
 
@@ -311,6 +314,8 @@ namespace EngineCore
 
 	void EngineApplication::testMoveObjectWithMouse()
 	{
+		//loadedMeshes.back()->getTransform().scale *= 20.f;//
+
 		// query inputs, this should only be used in 3D editor viewport
 		if (window.input.getAxisValue(5) < .1)
 		{ 
@@ -318,9 +323,14 @@ namespace EngineCore
 			return;
 		}
 
+		if (world.getLoadedSectors().size() < 2 && world.getLoadedSectors()[1]->primitives.size() < 2)
+			return;
+
+		auto& objectToMove = world.getLoadedSectors()[1]->primitives[1];
+
 		if (!movingObjectWithCursor)
 		{
-			mouseMoveObjectOriginalLocation = loadedMeshes.back()->getTransform().translation;
+			mouseMoveObjectOriginalLocation = objectToMove->getTransform().translation;
 			movingObjectWithCursor = true;
 		}
 
@@ -333,9 +343,8 @@ namespace EngineCore
 
 		//std::cout << "\nnear plane distance: " << Vec::distance(camera.transform.translation, nearPoint);
 		//std::cout << "\nfar plane distance: " << Vec::distance(camera.transform.translation, farPoint);
-
-		std::cout << "\n\nfinal x:" << p.x << " y:" << p.y << " z:" << p.z<<
-			" distance from camera : " << Vec::distance(p, camera.transform.translation);
+		//std::cout << "\n\nfinal x:" << p.x << " y:" << p.y << " z:" << p.z<<
+		//	" distance from camera : " << Vec::distance(p, camera.transform.translation);
 
 		bool moveX = window.input.getAxisValue(6) > .1;
 		bool moveY = window.input.getAxisValue(7) > .1;
@@ -345,7 +354,12 @@ namespace EngineCore
 		p.x = moveAll || moveX ? p.x : mouseMoveObjectOriginalLocation.x;
 		p.y = moveAll || moveY ? p.y : mouseMoveObjectOriginalLocation.y;
 		p.z = moveAll || moveZ ? p.z : mouseMoveObjectOriginalLocation.z;
-		loadedMeshes.back()->setTranslation(p);
+		
+		p.x += 1800.f;// TMP!!!
+
+		objectToMove->setTranslation(p);
+
+		std::cout << "\nfinal x:" << p.x << " y:" << p.y << " z:" << p.z;
 	}
 
 	glm::vec3 EngineApplication::unproject(glm::vec3 point)
@@ -373,9 +387,9 @@ namespace EngineCore
 		//glm::mat4 pvm_inv = glm::inverse(camera.getProjectionMatrix(camera.nearPlane+100, camera.nearPlane+400) * basis conversion matrix * camera.getViewMatrix());
 		glm::mat4 pvm_inv; // this line replaces the commented-out one above to indicate that we now use a common wrapper function to get the matrices instead, not real code
 		glm::vec4 w = pvm_inv * glm::vec4(x, y, planeDistance, dist2);
-		auto world = glm::vec3(w) * (1.0f / w.w);
+		auto worldv = glm::vec3(w) * (1.0f / w.w);
 		//std::cout << "\n\nmouse x:" << x << " y:" << y;
-		return { world.x, world.y, world.z };
+		return { worldv.x, worldv.y, worldv.z };
 	}
 
 	void EngineApplication::updateDescriptors(uint32_t frameIndex)
@@ -398,10 +412,14 @@ namespace EngineCore
 
 		//lightPos.y -= 5.f * engineClock.getDelta();
 		float roughness = 0.1f;
-		auto& mesh1dset = *loadedMeshes[1]->getMaterial()->getMaterialSpecificDescriptorSet();
-		mesh1dset.writeUBOMember(0, camPos, UBO_Layout::ElementAccessor{ 0, 0, 0 }, frameIndex);
-		mesh1dset.writeUBOMember(0, lightPos, UBO_Layout::ElementAccessor{ 1, 0, 0 }, frameIndex);
-		mesh1dset.writeUBOMember(0, roughness, UBO_Layout::ElementAccessor{ 2, 0, 0 }, frameIndex);
+		//auto& mesh1dset = *loadedMeshes[1]->getMaterial()->getMaterialSpecificDescriptorSet();
+		if (world.getLoadedSectors().size() > 1 && world.getLoadedSectors()[1]->primitives.size() > 1)
+		{
+			auto& mesh1dset = *world.getLoadedSectors()[1]->primitives[1]->getMaterial()->getMaterialSpecificDescriptorSet();
+			mesh1dset.writeUBOMember(0, camPos, UBO_Layout::ElementAccessor{ 0, 0, 0 }, frameIndex);
+			mesh1dset.writeUBOMember(0, lightPos, UBO_Layout::ElementAccessor{ 1, 0, 0 }, frameIndex);
+			mesh1dset.writeUBOMember(0, roughness, UBO_Layout::ElementAccessor{ 2, 0, 0 }, frameIndex);
+		}
 	}
 
 

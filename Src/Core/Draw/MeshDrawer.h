@@ -1,14 +1,18 @@
 #pragma once
 #include "Core/GPU/Material.h"
+#include "Core/Primitive.h"
 
 #include <glm/gtc/matrix_transform.hpp> // glm
-
 #include <memory>
 #include <vector>
 #include <cmath> // only used in perspective calculation
 
 class Camera;
-#include "Core/Primitive.h"
+
+namespace WorldSystem 
+{ 
+	class World;
+}
 
 namespace EngineCore
 {
@@ -23,7 +27,7 @@ namespace EngineCore
 		MeshDrawer(const MeshDrawer&) = delete;
 		MeshDrawer& operator=(const MeshDrawer&) = delete;
 
-		void renderMeshes(VkCommandBuffer commandBuffer, std::vector<std::unique_ptr<Primitive>>& meshes,
+		void renderMeshes(VkCommandBuffer commandBuffer, WorldSystem::World& world,
 						const float& deltaTimeSeconds, float time, uint32_t frameIndex, VkDescriptorSet sceneGlobalDescriptorSet,
 						const glm::mat4& viewMatrix, Transform& fakeScaleOffsets); //FakeScaleTest082
 

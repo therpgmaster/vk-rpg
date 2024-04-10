@@ -41,7 +41,7 @@ namespace EngineCore
 
 		uint32_t getSwapImageIndex() const { return currentImageIndex; }
 
-		float getAspectRatio() const;
+		float getSwapchainAspectRatio() const;
 		VkExtent2D getSwapchainExtent() const { return swapchain->getExtent(); }
 
 		// returns a command buffer to record commands into

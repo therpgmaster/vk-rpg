@@ -5,7 +5,8 @@
 
 #include <memory>
 #include <string_view>
-
+#include <vector>
+/*
 namespace EngineCore
 {
 	
@@ -17,10 +18,11 @@ namespace EngineCore
 		struct CharOptions { uint32_t screenResH, screenResV, glyphSize; };
 		bool loadTypeface(CharOptions options, std::string_view filepath, uint32_t faceIndex = 0);
 
+		
 	private:
 		FT_Library ft;
 	};
+	
 
 
-
-}
+}*/

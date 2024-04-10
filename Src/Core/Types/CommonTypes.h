@@ -84,6 +84,13 @@ struct Transform
 	glm::mat4 mat4() const { return makeMatrix(rotation, scale, translation); }
 
 	static glm::mat4 makeMatrix(const Vec& rotationIn, const Vec& scaleIn,
+		const Vec& translationIn = { 0.f, 0.f, 0.f }) 
+	{
+		return makeMatrixDef(rotationIn, scaleIn, translationIn);
+	}
+
+
+	static glm::mat4 makeMatrixZYX(const Vec& rotationIn, const Vec& scaleIn,
 		const Vec& translationIn = { 0.f, 0.f, 0.f })
 	{
 		/* returns Translation * Rz * Ry * Rx * Scale
@@ -117,6 +124,73 @@ struct Transform
 			},
 			{translationIn.x, translationIn.y, translationIn.z, 1.0f}
 		};
+	}
+
+	static glm::mat4 makeMatrixDef(const Vec& rotationIn, const Vec& scaleIn,
+		const Vec& translationIn = { 0.f, 0.f, 0.f })
+	{
+		/* returns Translation * Rx * Ry * Rz * Scale
+		* Tait-bryan angles X(1)-Y(2)-Z(3) rotation order
+		* https://en.wikipedia.org/wiki/Euler_angles#Rotation_matrix */
+		const float c3 = glm::cos(rotationIn.z);
+		const float s3 = glm::sin(rotationIn.z);
+		const float c2 = glm::cos(rotationIn.y);
+		const float s2 = glm::sin(rotationIn.y);
+		const float c1 = glm::cos(rotationIn.x);
+		const float s1 = glm::sin(rotationIn.x);
+		return glm::mat4
+		{
+			{
+				scaleIn.x * (c2 * c3),
+				scaleIn.x * (c1 * s3 + c3 * s1 * s2),
+				scaleIn.x * (s1 * s3 - c1 * c3 * s2),
+				0.0f,
+			},
+			{
+				scaleIn.y * -(c2 * s3),
+				scaleIn.y * (c1 * c3 - s1 * s2 * s3),
+				scaleIn.y * (c3 * s1 + c1 * s2 * s3),
+				0.0f,
+			},
+			{
+				scaleIn.z * (s2),
+				scaleIn.z * -(c2 * s1),
+				scaleIn.z * (c1 * c2),
+				0.0f,
+			},
+			{translationIn.x, translationIn.y, translationIn.z, 1.0f}
+		};
+	}
+
+	static glm::mat4 makeMatrixLve(const Vec& rotationIn, const Vec& scaleIn,
+		const Vec& translationIn = { 0.f, 0.f, 0.f })
+	{
+		const float c3 = glm::cos(rotationIn.z);
+		const float s3 = glm::sin(rotationIn.z);
+		const float c2 = glm::cos(rotationIn.x);
+		const float s2 = glm::sin(rotationIn.x);
+		const float c1 = glm::cos(rotationIn.y);
+		const float s1 = glm::sin(rotationIn.y);
+		return glm::mat4{
+			{
+				scaleIn.x * (c1 * c3 + s1 * s2 * s3),
+				scaleIn.x * (c2 * s3),
+				scaleIn.x * (c1 * s2 * s3 - c3 * s1),
+				0.0f,
+			},
+			{
+				scaleIn.y * (c3 * s1 * s2 - c1 * s3),
+				scaleIn.y * (c2 * c3),
+				scaleIn.y * (c1 * c3 * s2 + s1 * s3),
+				0.0f,
+			},
+			{
+				scaleIn.z * (c2 * s1),
+				scaleIn.z * (-s2),
+				scaleIn.z * (c1 * c2),
+				0.0f,
+			},
+			{translationIn.x, translationIn.y, translationIn.z, 1.0f} };
 	}
 
 	static glm::mat4 makeMatrix(const Vec& rotationIn) { return makeMatrix(rotationIn, { 1.f, 1.f, 1.f }); }

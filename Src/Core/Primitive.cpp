@@ -34,8 +34,15 @@ namespace EngineCore
 
 	std::shared_ptr<Material> Primitive::getMaterial() const { return material; }
 
-	void Primitive::createVertexBuffers(const std::vector<Vertex>& vertices)
+    bool Primitive::isPointInsideOOBB(const Vec& point)
+    {
+		assert(false && "not implemented (TODO)");
+		return false;
+    }
+
+    void Primitive::createVertexBuffers(const std::vector<Vertex>& vertices)
 	{
+		generateOOBB(vertices);
 		vertexCount = static_cast<uint32_t>(vertices.size());
 		assert(vertexCount >= 3 && "vertexCount cannot be below 3");
 		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertexCount;
@@ -80,6 +87,16 @@ namespace EngineCore
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT); // note INDEX_BUFFER_BIT
 
 		device.copyBuffer(stagingBuffer.getBuffer(), indexBuffer->getBuffer(), bufferSize);
+	}
+
+	void Primitive::generateOOBB(const std::vector<Vertex>& vertices)
+	{
+		for (const auto& v : vertices)
+		{
+			extent.x = std::max(extent.x, std::abs(v.position.x));
+			extent.y = std::max(extent.y, std::abs(v.position.y));
+			extent.z = std::max(extent.z, std::abs(v.position.z));
+		}
 	}
 
 	void Primitive::bind(VkCommandBuffer commandBuffer)
@@ -178,6 +195,18 @@ namespace EngineCore
 		};
 		indices = { 0,  1,  2,  0,  3,  1,  4,  5,  6,  4,  7,  5,  8,  9,  10, 8,  11, 9,
 								12, 13, 14, 12, 15, 13, 16, 17, 18, 16, 19, 17, 20, 21, 22, 20, 23, 21 };
+	}
+
+	void Primitive::MeshBuilder::makeCubeMeshWireframe()
+	{
+		const auto v = .5f;
+		vertices = {
+			{{v, v, -v}},{{v, -v, -v}},{{-v, -v, -v}},{{-v, v, -v}},
+			{{v, v, v}},{{v, -v, v}},{{-v, -v, v}},{{-v, v, v}}
+		};
+		indices = { 0,1,0, 1,2,1, 2,3,2, 3,0,3,		// floor
+					0,4,0, 1,5,1, 2,6,2, 3,7,3,		// pillars
+					4,5,4, 5,6,5, 6,7,6, 7,4,7 };	// ceiling
 	}
 
 	std::vector<VkVertexInputBindingDescription> Primitive::Vertex::getBindingDescriptions()

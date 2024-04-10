@@ -33,13 +33,22 @@ namespace EngineCore
 		materialInfo.shadingProperties.cullModeFlags = VK_CULL_MODE_NONE;
 		defaultMaterial = std::make_shared<Material>(materialInfo, device);
 
-		// add test ui element (temporary)
+		// add test ui element
 		InterfaceElement elem{};
-		elem.size = glm::vec2(0.33f,0.33f);
+		elem.size = glm::vec2(0.33f, 0.33f);
 		elem.position = glm::vec2(0.5f, 0.5f);
 		elem.setMaterial(defaultMaterial);
-
 		elements.push_back(elem);
+
+		// add test text letter quads
+		for (uint32_t i = 0; i < 10; i++) 
+		{
+			InterfaceElement elem{};
+			elem.size = glm::vec2(0.03f, 0.03f);
+			elem.position = glm::vec2(0.2f + (0.025f * i), 0.2f);
+			elem.setMaterial(defaultMaterial);
+			elements.push_back(elem);
+		}
 	}
 
 
@@ -47,13 +56,13 @@ namespace EngineCore
 	{
 		for (InterfaceElement& elem : elements) 
 		{
-			elem.getMaterial().bindToCommandBuffer(cmdBuf);
 
 			mousePosition.x /= windowExtent.width;
 			mousePosition.y /= windowExtent.height;
 			float timeSinceHover = elem.cursorHitTest(mousePosition) ? 0.f : 10.f; // TODO: actually accumulate time
 			float timeSinceClick = 10.f; // TODO
 			ShaderPushConstants::InterfaceElementPushConstants push{ elem.position, elem.size, timeSinceHover, timeSinceClick };
+			elem.getMaterial().bindToCommandBuffer(cmdBuf);
 			elem.getMaterial().writePushConstants(cmdBuf, push);
 
 			vkCmdDraw(cmdBuf, 6, 1, 0, 0); // bufferless draw (vertex attributes generated in shader)
