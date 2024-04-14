@@ -226,8 +226,8 @@ namespace EngineCore
 		{ getUBO(uboIndex).writeMember(position, (void*)&data, sizeof(T), frameIndex, flush); }
 
 		UBO& getUBO(uint32_t uboIndex);
-		VkDescriptorSetLayout getLayout();
-		VkDescriptorSet getDescriptorSet(uint32_t frameIndex) { return sets[frameIndex]; }
+		VkDescriptorSetLayout getLayout() const;
+		VkDescriptorSet getDescriptorSet(uint32_t frameIndex) const { return sets[frameIndex]; }
 
 	private:
 		std::unique_ptr<DescriptorPool> pool{};

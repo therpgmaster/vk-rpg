@@ -37,7 +37,6 @@ namespace EngineCore
 		static constexpr int WIDTH = 1920; //1100;
 		static constexpr int HEIGHT = 1080; //720;
 
-		EngineRenderSettings renderSettings{};
 
 		// begins the main window event loop
 		void startExecution();
@@ -51,11 +50,15 @@ namespace EngineCore
 
 		//void applyWorldOriginOffset(Transform& cameraTransform);
 
+		VkDescriptorSetLayout getGlobalDescriptorLayout() const { return dset.getLayout(); }
+		const EngineRenderSettings& getRenderSettings() const { return renderSettings; }
+		Renderer& getRenderer() { return renderer; }
+
 	private:
-		void loadDemoMeshes();
+		void loadDemoScene();
 		void setupDefaultInputs();
 		void setupDescriptors();
-		void applyDemoMaterials();
+		void applyDemoMaterials();//moved to world/sector system
 		void setupDrawers();
 		void onSwapchainCreated();
 		void render();
@@ -66,6 +69,8 @@ namespace EngineCore
 		void testMoveObjectWithMouse();
 		glm::vec3 getMouseMove3DLocationTest_legacy(float planeDistance, float dist2 = 1.f);
 		glm::vec3 unproject(glm::vec3 point);
+
+		EngineRenderSettings renderSettings{};
 
 		// engine application window (creates a window using GLFW) 
 		EngineWindow window{ WIDTH, HEIGHT, "Vulkan Window" };
@@ -78,10 +83,11 @@ namespace EngineCore
 
 		EngineClock engineClock{};
 
-		DescriptorSet dset{ device }; // default global descriptor set
+		// default global descriptor set
+		DescriptorSet dset{ device }; 
 
 		std::unique_ptr<DescriptorPool> globalDescriptorPool{};
-		std::vector<std::unique_ptr<Primitive>> loadedMeshes;
+		std::vector<std::unique_ptr<Primitive>> loadedMeshes;// moved to world/sector system
 
 		Camera camera;
 		std::unique_ptr<Image> spaceTexture;
@@ -99,7 +105,7 @@ namespace EngineCore
 		Vec mouseMoveObjectOriginalLocation;
 		bool movingObjectWithCursor = true;
 
-		WorldSystem::World world{ device };
+		WorldSystem::World world{ device, *this };
 
 	};
 

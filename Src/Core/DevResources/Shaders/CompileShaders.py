@@ -1,4 +1,4 @@
-# Copyright © 2023 Simon Liimatainen
+# Copyright © 2024 Simon Liimatainen
 import os
 from subprocess import Popen, PIPE
 from sys import exit as sys_exit, argv as sys_args

@@ -16,35 +16,31 @@ layout(std430, set = 1, binding = 0) uniform UBO2
 	vec2 extent;
 } fx;
 
+// rendered image from previous pass
 layout(set = 2, binding = 0) uniform texture2D attachment;
 
 
 void main()
 {
-	vec2 resolution = vec2(1920, 1080);
+	vec2 resolution = vec2(1920, 1080); // hardcoded resolution!
 
 
 	float Pi = 6.28318530718; // Pi*2
-    
     float Directions = 16.0; // BLUR DIRECTIONS (Default 16.0 - More is better but slower)
     float Quality = 6.0; // BLUR QUALITY (Default 4.0 - More is better but slower)
     float Size = 7.0; // BLUR SIZE (Radius)
     vec2 Radius = Size/resolution;
-
-	vec2 uv = gl_FragCoord.xy / resolution; // / fx.extent;
+	vec2 uv = gl_FragCoord.xy / resolution;
 	uv = gl_FragCoord.xy / resolution + fragNormalWS.xy / 20.0;
-	vec4 Color = texture(sampler2D(attachment, _sampler), uv);
-	//vec4 color2 = texture(sampler2D(attachment, _sampler), uv + 5);
-	//outColor = mix(color, color2, 0.5);
-
+	vec4 color = texture(sampler2D(attachment, _sampler), uv);
 	for(float d=0.0; d<Pi; d+=Pi/Directions)
     {
 		for(float i=1.0/Quality; i<=1.0; i+=1.0/Quality)
         {
-			Color += texture(sampler2D(attachment, _sampler), uv+vec2(cos(d),sin(d))*Radius*i);
+			color += texture(sampler2D(attachment, _sampler), uv+vec2(cos(d),sin(d))*Radius*i);
         }
     }
 
-	Color /= Quality * Directions - 15.0;
-	outColor = Color + (vec4(0.04, 0.07, 0.1, 1.0)/2.0);
+	color /= Quality * Directions - 15.0;
+	outColor = color + (vec4(0.04, 0.07, 0.1, 1.0)/2.0);
 }

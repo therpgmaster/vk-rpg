@@ -2,7 +2,10 @@
 #include "Core/WorldSystem/World.h"
 #include "Core/Camera.h"
 #include "Core/Primitive.h"
-
+#include "Core/GPU/Material.h"
+#include "Core/GPU/Buffer.h"
+#include "Core/GPU/Image.h"
+#include "Core/Engine.h"
 
 #include <cmath>
 #include <algorithm>
@@ -12,8 +15,8 @@
 namespace WorldSystem
 {
 
-	World::World(EngineCore::EngineDevice& device)
-		: device{ device }, localSectorCoord{ nullptr }
+	World::World(EngineCore::EngineDevice& device, EngineCore::EngineApplication& engine)
+		: device{ device }, engine{ engine }, localSectorCoord{ std::make_unique<SectorCoord>() }
 	{
 		// create the persistent world sector
 		sectors.push_back(std::make_unique<Sector>(SectorCoord(0, 0, 0)));
@@ -68,7 +71,7 @@ namespace WorldSystem
 		}
 
 		bool enteredNewSector = (coordNew != getLocalSectorCoordinate());
-		pos = newLocalPos;
+		//pos = newLocalPos;		TODO: actually update the camera position !!!
 		setLocalSectorCoordinate(coordNew);
 		return enteredNewSector;
 	}
@@ -78,12 +81,12 @@ namespace WorldSystem
 		// TODO: allow loading arbitrary sectors from file
 		if (sectorPosition != SectorCoord(0,0,0))
 		{
-			std::cout << "sector loading not implemented for " << sectorPosition.x << ", " << sectorPosition.y << ", " << sectorPosition.z;
+			//std::cout << "sector loading not implemented for " << sectorPosition.x << ", " << sectorPosition.y << ", " << sectorPosition.z;
 			return *sectors.back().get();
 		}
 		else
 		{
-			createDemoSector();
+			
 		}
 
 		return *sectors.back().get();
@@ -128,27 +131,46 @@ namespace WorldSystem
 		return it->get();
 	}
 
-	void World::createDemoSector()
+	void World::createDemoSectorContent()
 	{
-		sectors.push_back(std::make_unique<Sector>(SectorCoord(0,0,0)));
-		auto& sector = *sectors.back();
-		setLocalSectorCoordinate(sector.coordinates);
+		auto& sector = *sectors[0]; // get the persistent sector
 
-		uint32_t i = 0;
-		while (i < 100)
+		// create 3D primitive(s)
+		for (size_t i = 0; i < 1; i++)
 		{
-			EngineCore::Primitive::MeshBuilder builder2{};
-			builder2.loadFromFile(makePath("Meshes/6star.obj")); // TODO: hardcoded path
-			sector.primitives.push_back(std::make_unique<EngineCore::Primitive>(device, builder2));
+			EngineCore::Primitive::MeshBuilder builder{};
+			builder.loadFromFile(makePath("Meshes/teapot.obj")); // TODO: hardcoded path
+			sector.primitives.push_back(std::make_unique<EngineCore::Primitive>(device, builder));
 			sector.primitives.back()->getTransform().translation = Vec{ 17.f + (i * 17.f), 0.f, 0.f };
 			sector.primitives.back()->getTransform().scale = 30.f;
-			if (i == 1)
+			if (i == 0)
 			{
-				sector.primitives.back()->getTransform().scale *= 5.f;
-				sector.primitives.back()->getTransform().translation.x += 300.f;
+				sector.primitives.back()->getTransform().scale *= 5.f; // scale up the second mesh
+				sector.primitives.back()->getTransform().translation.x += 1500.f;
+				sector.primitives.back()->getTransform().rotation.z += 95.f;
 			}
+		}
 
-			i++;
+		// create material-specific descriptor set (the set must be initialized before using its layout)
+		EngineCore::UBO_Struct ubo{};
+		ubo.add(EngineCore::uelem::vec3); // camera position
+		ubo.add(EngineCore::uelem::vec3); // light position
+		ubo.add(EngineCore::uelem::scalar); // roughness
+		auto matSet = std::make_shared<EngineCore::DescriptorSet>(device);
+		matSet->addUBO(ubo, device);
+		matSet->finalize(); // create material-specific descriptor set
+
+		// create demo material
+		EngineCore::ShaderFilePaths shader(makePath("Shaders/shader.vert.spv"), makePath("Shaders/pbr.frag.spv"));
+		for (size_t i = 0; i < sector.primitives.size(); i++)
+		{
+			// TODO: materials should automatically include the layout of their own set (if present) on construct!!!
+			EngineCore::MaterialCreateInfo matInfo(shader, std::vector<VkDescriptorSetLayout>{ engine.getGlobalDescriptorLayout(), matSet->getLayout() },
+						engine.getRenderSettings().sampleCountMSAA, engine.getRenderer().getBaseRenderpass().getRenderpass(), sizeof(EngineCore::ShaderPushConstants::MeshPushConstants));
+			matInfo.shadingProperties.cullModeFlags = VK_CULL_MODE_NONE;
+
+			sector.primitives[i]->setMaterial(matInfo);
+			sector.primitives[i]->getMaterial()->setMaterialSpecificDescriptorSet(matSet); // TODO: better way to create material-specific sets
 		}
 	}
 

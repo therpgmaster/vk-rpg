@@ -10,6 +10,7 @@ namespace EngineCore
 { 
 	class EngineDevice;
 	class Camera;
+	class EngineApplication;
 }
 
 namespace WorldSystem
@@ -18,9 +19,9 @@ namespace WorldSystem
 	{
 		static constexpr uint32_t SECTOR_SIZE = 50000; //800000;
 	public:
-		World(EngineCore::EngineDevice& device);
+		World(EngineCore::EngineDevice& device, EngineCore::EngineApplication& engine);
 
-		void createDemoSector();
+		void createDemoSectorContent();
 		// checks whether we have moved into a new sector
 		void sectorUpdate(EngineCore::Camera& camera);
 
@@ -31,6 +32,7 @@ namespace WorldSystem
 		Vec getLocalSectorOriginAbsolute() const;
 		uint32_t getSectorSize() const { return SECTOR_SIZE; }
 		std::vector<std::unique_ptr<Sector>>& getLoadedSectors() { return sectors; }
+		Sector& getPersistentSector() { return *sectors[0].get(); }
 
 
 	private:
@@ -45,6 +47,7 @@ namespace WorldSystem
 
 	private:
 		EngineCore::EngineDevice& device;
+		EngineCore::EngineApplication& engine;
 		
 	};
 

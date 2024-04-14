@@ -73,7 +73,7 @@ namespace EngineCore
 		float lookSpeed = 6.8f;
 		float moveSpeed = 30.f;
 		//if (extraSpeed) { moveSpeed *= 80.f; }
-		if (extraSpeed) { moveSpeed *= 1500.f; }
+		if (extraSpeed) { moveSpeed *= 100.f; }
 
 		float yawInput = lookInput.x != 0 ? lookInput.x / abs(lookInput.x) : 0.f;
 		float pitchInput = lookInput.y != 0 ? lookInput.y / abs(lookInput.y) : 0.f;

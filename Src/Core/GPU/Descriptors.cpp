@@ -483,7 +483,7 @@ namespace EngineCore
 		}
 	}
 
-	VkDescriptorSetLayout DescriptorSet::getLayout()
+	VkDescriptorSetLayout DescriptorSet::getLayout() const
 	{
 		assert(layout.get() && "tried to get layout from uninitialized descriptor set");
 		if (!layout.get()) { return VK_NULL_HANDLE; }

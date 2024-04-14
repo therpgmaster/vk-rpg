@@ -70,11 +70,12 @@ void main()
     vec3 viewDir = normalize(ubo2.cameraPosition - fragPositionWS);
     vec3 halfwayVec = normalize(lightDir + viewDir);
 
+    float effectiveRoughness = ubo2.roughness;
     float indirect = 0.001;
     //vec4 baseColor = texture(sampler2D(textures[0], _sampler), fragUV);
     float colorGrayscale = 1.0;
     vec4 baseColor = vec4(colorGrayscale,colorGrayscale,colorGrayscale,1.0);
-	vec3 litColor = BRDF(baseColor.xyz, normalize(fragNormalWS), viewDir, lightDir, halfwayVec, ubo2.roughness);
+	vec3 litColor = BRDF(baseColor.xyz, normalize(fragNormalWS), viewDir, lightDir, halfwayVec, effectiveRoughness);
     outColor = vec4(litColor.x, litColor.y, litColor.z, baseColor.w) + indirect;
     //outColor = vec4(fragNormalWS.x, fragNormalWS.y, fragNormalWS.z, 1.0);
 }

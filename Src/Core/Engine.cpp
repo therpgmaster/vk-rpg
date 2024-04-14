@@ -26,11 +26,11 @@ namespace EngineCore
 		camera.transform.translation = glm::vec3(0.f, 0.f, 150.f);
 		//camera.transform.translation.x = -8.f;
 
-		loadDemoMeshes();
 		setupDescriptors();
+		loadDemoScene();
 		setupDrawers();
 		setupDefaultInputs();
-		applyDemoMaterials();
+		//applyDemoMaterials();
 
 		// window event loop
 		while (!window.getCloseWindow())
@@ -45,8 +45,11 @@ namespace EngineCore
 		vkDeviceWaitIdle(device.device());
 	}
 	
-	void EngineApplication::loadDemoMeshes()
+	void EngineApplication::loadDemoScene()
 	{
+		world.createDemoSectorContent();
+
+		// MOVED TO WORLD SECTOR SYSTEM
 		// mars
 		//Primitive::MeshBuilder builder{};
 		//builder.loadFromFile(makePath("Meshes/mars.obj")); // TODO: hardcoded path
@@ -59,11 +62,6 @@ namespace EngineCore
 		loadedMeshes[1]->useFakeScale = true;//FakeScaleTest082 testing on mesh at index 1
 		loadedMeshes[1]->getTransform().translation.x = 0.f;
 		loadedMeshes[1]->getTransform().scale = 1.f;*/
-
-		
-		// MOVED TO WORLD SECTOR SYSTEM
-		
-		
 	}
 
 	void EngineApplication::setupDescriptors() 
@@ -131,32 +129,30 @@ namespace EngineCore
 		* MOVE TO WORLD SECTOR SYSTEM*/
 
 		// create demo material
-		ShaderFilePaths shader(makePath("Shaders/shader.vert.spv"), makePath("Shaders/shader.frag.spv"));
-		loadedMeshes[0]->setMaterial(MaterialCreateInfo(shader, std::vector<VkDescriptorSetLayout>{ dset.getLayout() }, 
-										renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass(), sizeof(ShaderPushConstants::MeshPushConstants)));
+		//ShaderFilePaths shader(makePath("Shaders/shader.vert.spv"), makePath("Shaders/shader.frag.spv"));
+		//loadedMeshes[0]->setMaterial(MaterialCreateInfo(shader, std::vector<VkDescriptorSetLayout>{ dset.getLayout() }, 
+		//								renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass(), sizeof(ShaderPushConstants::MeshPushConstants)));
 
 
 		// descriptor set must be initialized before using its layout
-		UBO_Struct ubo_g{};
-		ubo_g.add(uelem::vec3); // camera position
-		ubo_g.add(uelem::vec3); // light position
-		ubo_g.add(uelem::scalar); // roughness
-		auto matSet = std::make_shared<DescriptorSet>(device);
-		matSet->addUBO(ubo_g, device);
-		matSet->finalize(); // create material-specific descriptor set
+		//UBO_Struct ubo_g{};
+		//ubo_g.add(uelem::vec3); // camera position
+		//ubo_g.add(uelem::vec3); // light position
+		//ubo_g.add(uelem::scalar); // roughness
+		//auto matSet = std::make_shared<DescriptorSet>(device);
+		//matSet->addUBO(ubo_g, device);
+		//matSet->finalize(); // create material-specific descriptor set
 
-		ShaderFilePaths shader2(makePath("Shaders/shader.vert.spv"), makePath("Shaders/pbr.frag.spv"));
-		for (size_t i = 1; i < loadedMeshes.size(); i++)
-		{
-			// TODO: materials should automatically include the layout of their own set (if present) on construct!!!
-			MaterialCreateInfo matInfo(shader2, std::vector<VkDescriptorSetLayout>{ dset.getLayout(), matSet->getLayout() },
-						renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass(), sizeof(ShaderPushConstants::MeshPushConstants));
-			matInfo.shadingProperties.cullModeFlags = VK_CULL_MODE_NONE;
-			loadedMeshes[i]->setMaterial(matInfo);
-			loadedMeshes[i]->getMaterial()->setMaterialSpecificDescriptorSet(matSet); // TODO: better way to create material-specific sets
-		}
-		//*/
-
+		//ShaderFilePaths shader2(makePath("Shaders/shader.vert.spv"), makePath("Shaders/pbr.frag.spv"));
+		//for (size_t i = 1; i < loadedMeshes.size(); i++)
+		//{
+		//	// TODO: materials should automatically include the layout of their own set (if present) on construct!!!
+		//	MaterialCreateInfo matInfo(shader2, std::vector<VkDescriptorSetLayout>{ dset.getLayout(), matSet->getLayout() },
+		//				renderSettings.sampleCountMSAA, renderer.getBaseRenderpass().getRenderpass(), sizeof(ShaderPushConstants::MeshPushConstants));
+		//	matInfo.shadingProperties.cullModeFlags = VK_CULL_MODE_NONE;
+		//	loadedMeshes[i]->setMaterial(matInfo);
+		//	loadedMeshes[i]->getMaterial()->setMaterialSpecificDescriptorSet(matSet); // TODO: better way to create material-specific sets
+		//}
 	}
 
 	void EngineApplication::onSwapchainCreated()
@@ -410,15 +406,14 @@ namespace EngineCore
 		glm::vec3 camPos = camera.transform.translation;
 
 
-		//lightPos.y -= 5.f * engineClock.getDelta();
-		float roughness = 0.1f;
-		//auto& mesh1dset = *loadedMeshes[1]->getMaterial()->getMaterialSpecificDescriptorSet();
-		if (world.getLoadedSectors().size() > 1 && world.getLoadedSectors()[1]->primitives.size() > 1)
+		lightPos.y -= 50.f * engineClock.getDelta();
+		float roughness = 0.15f;
+		if (world.getLoadedSectors().size() && world.getPersistentSector().primitives.size() > 0)
 		{
-			auto& mesh1dset = *world.getLoadedSectors()[1]->primitives[1]->getMaterial()->getMaterialSpecificDescriptorSet();
-			mesh1dset.writeUBOMember(0, camPos, UBO_Layout::ElementAccessor{ 0, 0, 0 }, frameIndex);
-			mesh1dset.writeUBOMember(0, lightPos, UBO_Layout::ElementAccessor{ 1, 0, 0 }, frameIndex);
-			mesh1dset.writeUBOMember(0, roughness, UBO_Layout::ElementAccessor{ 2, 0, 0 }, frameIndex);
+			auto& meshDset = *world.getPersistentSector().primitives[0]->getMaterial()->getMaterialSpecificDescriptorSet();
+			meshDset.writeUBOMember(0, camPos, UBO_Layout::ElementAccessor{ 0, 0, 0 }, frameIndex);
+			meshDset.writeUBOMember(0, lightPos, UBO_Layout::ElementAccessor{ 1, 0, 0 }, frameIndex);
+			meshDset.writeUBOMember(0, roughness, UBO_Layout::ElementAccessor{ 2, 0, 0 }, frameIndex);
 		}
 	}
 
