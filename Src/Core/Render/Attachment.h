@@ -1,5 +1,5 @@
 #pragma once
-#include "Core/vk.h"
+#include "Core/Types/vk.h"
 #include "Core/GPU/Image.h"
 #include <memory>
 #include <vector>
