@@ -1,6 +1,6 @@
-#include "Core/Swapchain.h"
+#include "Core/GPU/Swapchain.h"
 
-#include "Core/Attachment.h"
+#include "Core/Render/Attachment.h"
 
 #include <array>
 #include <cstdlib>

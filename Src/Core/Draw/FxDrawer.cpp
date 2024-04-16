@@ -3,7 +3,7 @@
 #include "Core/Types/CommonTypes.h"
 #include "Core/GPU/Descriptors.h"
 #include "Core/GPU/Material.h"
-#include "Core/Renderer.h"
+#include "Core/Render/Renderer.h"
 
 namespace EngineCore
 {

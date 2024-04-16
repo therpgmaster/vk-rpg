@@ -1,7 +1,7 @@
 #pragma once
-#include "Core/Swapchain.h"
-#include "Core/Renderpass.h"
-#include "Core/Attachment.h"
+#include "Core/GPU/Swapchain.h"
+#include "Core/Render/Renderpass.h"
+#include "Core/Render/Attachment.h"
 
 #include <memory>
 #include <vector>

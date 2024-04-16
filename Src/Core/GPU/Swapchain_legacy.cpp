@@ -1,4 +1,4 @@
-#include "Core/Swapchain_legacy.h"
+#include "Core/GPU/Swapchain_legacy.h"
 
 #include <array>
 #include <cstdlib>
