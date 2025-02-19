@@ -10,6 +10,21 @@ namespace EngineCore
 	class Renderer;
 	class EngineDevice;
 
+	class LightAttachment;
+
+	// a collection of related framebuffers (e.g. one for each frame in flight / swapchain image)
+	class FramebufferSet
+	{
+	public:
+		FramebufferSet(class EngineDevice& device) : device(device) {};
+		~FramebufferSet();
+		void createFramebuffers(const LightAttachment& lightAttachment);
+		VkFramebuffer getFramebuffer(size_t i) const { return framebuffers[i]; }
+	private:
+		std::vector<VkFramebuffer> framebuffers;
+		class EngineDevice& device;
+	};
+
 	// acquires shared ownership of the Attachment objects
 	class Renderpass 
 	{
@@ -20,16 +35,17 @@ namespace EngineCore
 		Renderpass(Renderpass&&) = default;
 
 		// uses the supplied command buffer to begin the renderpass
-		void begin(VkCommandBuffer cmdBuffer, uint32_t framebufferIndex);
+		void begin(VkCommandBuffer cmdBuffer, uint32_t framebufferSetIndex, uint32_t framebufferIndex);
 
 		VkRenderPass getRenderpass() const { return renderpass; }
 
 	private:
 		VkRenderPass renderpass;
-		std::vector<VkFramebuffer> framebuffers; // one for each swapchain image
+		std::vector<FramebufferSet> framebufferSets; // one framebuffer for each swapchain image (or frame), in each set
 		VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
 		class EngineDevice& device;
 
+		// image views, description, and type for each attachment
 		std::vector<AttachmentUse> attachments;
 		std::vector<VkAttachmentDescription2> attachmentDescriptions;
 

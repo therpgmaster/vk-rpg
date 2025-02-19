@@ -80,6 +80,7 @@ namespace EngineCore
 
 		std::unique_ptr<Renderpass> baseRenderpass;
 		std::unique_ptr<Renderpass> fxRenderpass;
+		// the same attachment may be used in multiple renderpasses
 		std::vector<std::unique_ptr<Attachment>> attachments;
 		std::vector<VkImageView> fxPassInputImageViews; // view(s) to the color attachment image rendered by the first renderpass
 		std::vector<VkImageView> fxPassInputDepthImageViews;

@@ -23,12 +23,13 @@ namespace EngineCore
 		VkImageAspectFlags getAspectFlags() const;
 	};
 	
-	// handles the image resources for a framebuffer attachment, may be used in multiple framebuffers
+	// an attachment object manages the image resources for a framebuffer attachment (for a specific image format)
+	// it may have multiple image copies for double/triple buffering, to be used in multiple framebuffers
 	class Attachment
 	{
 	public:
 		Attachment(EngineDevice& device, const AttachmentProperties& props, bool input, bool sampled);
-		// create from existing images(e.g. for swapchain attachment)
+		// create from existing images (e.g. for swapchain attachment)
 		Attachment(EngineDevice& device, const AttachmentProperties& props, const std::vector<VkImage>& swapchainImages);
 		Attachment(Attachment&&) = default;
 
